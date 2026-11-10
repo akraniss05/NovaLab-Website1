@@ -1,41 +1,5 @@
 [
   {
-    "id": "novalab-code",
-    "title": "NovaLab Code",
-    "subtitle": "Lerne Programmieren. Entwickle eigene Projekte. Erweitere deine Fähigkeiten.",
-    "description": "NovaLab Code ist die Desktop-Ausgabe unserer bestehenden Coding-Lernplattform. Entdecke strukturierte Programmierkurse, bearbeite praktische Aufgaben, überprüfe dein Wissen und behalte deinen Lernfortschritt im Blick. Die Anwendung verwendet dieselbe Kurs- und Login-Infrastruktur wie die NovaLab Academy. Online-Anmeldung und Kursdaten benötigen Internet.",
-    "type": "app",
-    "status": "Early Access",
-    "genre": "Bildung",
-    "tags": [
-      "Lernsoftware",
-      "Coding",
-      "Entwicklung",
-      "Kostenlos"
-    ],
-    "accent": "#6854ed",
-    "developer": "NovaLab Studios",
-    "publisher": "NovaLab Studios",
-    "featured": true,
-    "cover": "https://akraniss05.github.io/NovaLab-Website1/launcher/assets/novalab-code-cover.svg",
-    "banner": "https://akraniss05.github.io/NovaLab-Website1/launcher/assets/novalab-code-banner.svg",
-    "website": "https://liverylab-academy.dev/",
-    "requirements": {
-      "minimum": "Windows 10 (64-bit)\nInternetverbindung für Anmeldung und Online-Lerninhalte",
-      "recommended": "Windows 11 (64-bit)\nStabile Internetverbindung"
-    },
-    "release": {
-      "format": "windows",
-      "version": "1.0.0",
-      "url": "https://github.com/akraniss05/NovaLab-Code/releases/download/code-v1.0.0/NovaLab-Code-win-x64-v1.0.0.zip",
-      "sha256": "a5f9247d7db0a8066273177583ae25d9e0caf213db637356906b1b8a75b09593",
-      "entry": "NovaLab Code.exe",
-      "size": 158870468,
-      "changelog": "Erste Windows-Desktop-Ausgabe der vorhandenen NovaLab-Code-Lernplattform. Gebündelter Frontend-Code, Desktop-Fenster, Online-Supabase-Anbindung und persistente lokale Desktop-Daten.",
-      "updated_at": "2026-11-10"
-    }
-  },
-  {
     "id": "orbit-dash",
     "title": "Orbit Dash",
     "subtitle": "Dodge den Meteorenregen in einem schnellen Weltraum-Arcadegame.",
