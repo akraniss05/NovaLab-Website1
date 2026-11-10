@@ -1,0 +1,197 @@
+/* NovaLab Studios v12 – iPhone Safari fixes + premium responsive hero */
+
+/* Safari/WebKit: gradient text requires both background-clip and -webkit-text-fill-color.
+   Use a real text-color fallback if background-clip is not supported. */
+.gradient{
+  color:#d6a5ff;
+  -webkit-text-fill-color:#d6a5ff;
+  background:none;
+}
+@supports (-webkit-background-clip:text) {
+  .gradient {
+    background:linear-gradient(108deg,#faf0ff 0%,#d5a6ff 56%,#a576fa 100%);
+    -webkit-background-clip:text;
+    background-clip:text;
+    -webkit-text-fill-color:transparent;
+    color:transparent;
+  }
+}
+.hero-highlight{
+  color:#e2b9ff;
+  -webkit-text-fill-color:#e2b9ff;
+  background:none;
+  text-shadow:0 0 36px rgba(172,91,255,.29);
+}
+/* Never use gradient backgrounds as a substitute for legible heading text. */
+.cinema h1{max-width:920px;text-wrap:balance}
+.cinema h1 .hero-highlight{display:inline}
+.cinema-content>div:first-child{min-width:0}
+.hero-chip{max-width:100%}
+.cinema p{max-width:570px}
+
+/* Improve the visual hierarchy and card spacing on all screens. */
+.studio-about,.studio-introduction,.studio-news-main,.studio-news-mini{box-shadow:0 14px 44px rgba(0,0,0,.16)}
+.site-header{background:rgba(8,8,17,.94)}
+.nav-link:hover{color:#fff}
+.btn:focus-visible,.nav-link:focus-visible{outline:2px solid #e3baff;outline-offset:3px}
+
+@media(max-width:740px) {
+  .site-header{height:66px}
+  .nav-inner{min-width:0}
+  .brand{font-size:15px;letter-spacing:-.05em;gap:8px;min-width:0}
+  .brand-logo{height:39px;width:39px;flex-shrink:0}
+  .nav-cta{margin-left:auto;min-width:38px;min-height:38px;padding:8px 10px}
+  .mobile-nav-btn{width:39px;height:39px;flex:0 0 39px}
+  .nav-items{top:65px}
+
+  /* Compact left-aligned hero: no overlapping circular logo or giant headline bars. */
+  .cinema{
+    display:block!important;
+    height:auto!important;
+    min-height:0!important;
+    overflow:hidden;
+    background:#0b0918;
+  }
+  .cinema-bg{
+    background-image:linear-gradient(90deg,rgba(9,8,20,.94),rgba(15,9,28,.77)),var(--banner)!important;
+    background-size:cover;
+    background-position:60% center;
+    transform:none!important;
+    filter:saturate(1.16) contrast(1.02);
+  }
+  .cinema:before{
+    background:linear-gradient(to bottom,rgba(9,7,20,.1),transparent 35%,#090a12 100%);
+  }
+  .cinema:after{height:95px;opacity:.45}
+  .cinema-content{
+    position:relative!important;
+    display:block!important;
+    text-align:left!important;
+    padding:43px 0 42px!important;
+    min-height:0!important;
+  }
+  .cinema-content>div:first-child{
+    position:relative;
+    z-index:3;
+  }
+  .hero-chip{
+    display:inline-flex;
+    gap:8px;
+    letter-spacing:.1em;
+    font-size:9px;
+    padding:8px 11px;
+    border-radius:100px;
+    width:max-content;
+    max-width:100%;
+    white-space:nowrap;
+  }
+  .cinema h1{
+    text-align:left!important;
+    font-size:clamp(41px,10.4vw,57px)!important;
+    line-height:1.07!important;
+    letter-spacing:-.066em!important;
+    margin:25px 0 17px!important;
+    max-width:calc(100% - 5px);
+    overflow-wrap:normal;
+    word-break:normal;
+    text-wrap:balance;
+  }
+  .cinema h1 .hero-highlight{
+    color:#dfb1ff!important;
+    -webkit-text-fill-color:#dfb1ff!important;
+    background:none!important;
+    text-shadow:0 0 25px rgba(150,70,235,.28);
+    white-space:nowrap;
+  }
+  .cinema p{
+    font-size:13px!important;
+    line-height:1.68!important;
+    text-align:left!important;
+    max-width:340px;
+    margin:0!important;
+    color:#d5cbdc!important;
+  }
+  .hero-buttons{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    gap:9px!important;
+    justify-content:stretch!important;
+    margin-top:25px!important;
+  }
+  .hero-buttons .btn{
+    min-width:0;
+    min-height:45px;
+    width:100%;
+    padding:9px 10px;
+    border-radius:10px;
+    font-size:11px;
+    line-height:1.25;
+    text-align:center;
+    white-space:normal;
+  }
+  .hero-buttons .btn svg{height:15px;width:15px;flex-shrink:0}
+  .hero-note{display:none!important}
+  .hero-art{
+    display:block!important;
+    position:absolute!important;
+    top:24px!important;
+    right:-13px!important;
+    left:auto!important;
+    bottom:auto!important;
+    z-index:1!important;
+    width:115px!important;
+    height:115px!important;
+    pointer-events:none!important;
+    opacity:.25!important;
+    filter:none!important;
+    order:initial!important;
+  }
+  .hero-art:before,.hero-art:after{display:none!important}
+  .hero-art img{
+    display:block!important;
+    width:110px!important;
+    height:110px!important;
+    object-fit:contain!important;
+    border:0!important;
+    border-radius:50%!important;
+    box-shadow:none!important;
+    transform:none!important;
+    animation:none!important;
+    filter:drop-shadow(0 0 16px rgba(155,67,232,.35))!important;
+  }
+  /* Remove redundant giant NL decoration in the next panel on phones. */
+  .studio-introduction{
+    margin:23px 0 0!important;
+    padding:25px 22px!important;
+    display:block!important;
+    min-height:0!important;
+  }
+  .studio-intro-visual{display:none!important}
+  .studio-introduction h2{font-size:clamp(33px,8.4vw,45px)!important;line-height:1.13;margin:12px 0!important}
+  .studio-introduction p{font-size:13px!important;line-height:1.7!important}
+  .studio-intro-actions{margin-top:19px!important;gap:8px}
+  .studio-intro-actions .btn{flex:1 1 auto;min-width:0;font-size:11px;padding:10px 12px}
+  .strip{margin-top:12px!important}
+  .studio-about{margin-top:38px!important}
+  /* Text gradients in normal headings fall back to a legible solid highlight. */
+  .studio-introduction .gradient,
+  .studio-about .gradient,
+  .section-head .gradient,
+  .page-hero .gradient,
+  .studio-news .gradient {
+    background:none!important;
+    color:#ddaaff!important;
+    -webkit-text-fill-color:#ddaaff!important;
+  }
+}
+@media(max-width:390px){
+  .brand{font-size:14px}
+  .cinema-content{padding-top:34px!important;padding-bottom:36px!important}
+  .cinema h1{font-size:clamp(38px,10.2vw,45px)!important;margin-top:23px!important}
+  .hero-buttons .btn{font-size:10px}
+  .studio-intro-actions{display:grid;grid-template-columns:1fr;gap:8px}
+  .studio-intro-actions .btn{width:100%!important}
+}
+@media(prefers-reduced-motion:reduce){
+  .hero-art img{animation:none!important}
+}
