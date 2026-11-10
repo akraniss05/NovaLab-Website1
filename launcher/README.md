@@ -140,3 +140,13 @@ Das neue Interface nutzt Steam-inspirierte **Navigationsprinzipien**, aber bewus
 - Neue Unit-Tests: `npm run check` prüft Syntax sowie Updatezustände inklusive paralleler Checks, Netzwerkausfällen und Download.
 
 **Update-Hinweise:** Der Download- und Installationsprozess wird über `electron-updater`/NSIS mit `latest.yml` aus GitHub Releases gesteuert. Der Installer muss weiterhin unsigniert von Windows-Nutzern explizit bestätigt werden; es gibt noch kein verifiziertes Code-Signing-Zertifikat. Laufende Apps werden nicht ohne Bestätigung automatisch geschlossen. Bei Schwierigkeiten kann der aktuelle Installer direkt von der GitHub-Release-Seite heruntergeladen und über die vorhandene Version installiert werden.
+
+## Release 0.5.0 (Early Access)
+
+- Persistente Download-Warteschlange mit Pause, Fortsetzen, Abbruch und Retry.
+- HTTP-Range-Resume bei unterstütztem Server; SHA-256-Paketprüfung und ZIP-Sicherheit.
+- Transaktionale Spieleinstallation mit Rollback bei Installationsfehlern.
+- Lokale Bibliotheksfilter, Favoriten, letzte Spielzeit und wählbarer Installationsordner.
+- 11 bestandene automatisierte Unit-Tests und ein erfolgreicher Windows-Preview-Build.
+- Einschränkungen: kein verifiziertes Windows-E2E, kein vollständiges Datei-Manifest/Delta-Update, Installer noch ohne Signatur.
+
