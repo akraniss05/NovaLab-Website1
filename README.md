@@ -35,3 +35,10 @@ Bilder und Videos liegen im öffentlichen Storage-Bucket `novalab-site-media`. U
 - Die Website nutzt GitHub Pages (`main` / Root). Ein erfolgreicher Pages-Workflow ist Voraussetzung, dass die aktuelle Version öffentlich erscheint.
 - Für große Videos besser YouTube/Vimeo oder ein spezialisiertes CDN verwenden.
 - Eine zusätzliche MFA-Funktion wäre eine sinnvolle spätere Sicherheitsverbesserung.
+
+## V13 – visuelles und mobiles Update (10.11.2026)
+- Die Status-Badges der Game- und Beat-Maker-Karten stehen nun im normalen Flex-Layout, nicht mehr absolut über Texten. Keine Badge-Überschneidungen auf iPhone und Tablet.
+- Dezente neue Gamepad-/Musik-Line-Art und besser lesbare Coding-Grafik.
+- Verbesserte mobile Typografie, einheitliche Status-Chips, Button-Abstände, Fokusrahmen und responsive Projektübersicht.
+- Mobiles Menü schließt zusätzlich mit Escape, außerhalb des Menüs und beim Wechsel auf Desktop.
+- Das separate Supabase-Admin-Login sowie Projektgalerie, Video-Uploads und andere bestehende Funktionen bleiben erhalten.

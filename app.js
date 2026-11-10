@@ -58,7 +58,7 @@ else if(/\.(mp4|webm)(?:$|\?)/i.test(s)){const video=el("video");video.src=s;vid
 else{panel.append(makeLink("Projektvideo öffnen ↗",s,"btn btn-ghost"))}
 panel.append(el("p","","Projektvideo"));return panel}
 function route(){let hash=decodeURIComponent(location.hash.slice(1)||"home").replace(/[^a-z0-9/-]/gi,"");let page=hash.startsWith("project/")?"project":ROUTES.includes(hash)?hash:"home";document.querySelectorAll(".page").forEach(e=>{e.hidden=e.dataset.page!==page});document.querySelectorAll(".nav-link").forEach(e=>{let is=(e.dataset.go===page)||(page==="code"||page==="music"?e.dataset.go==="learning":page==="project"&&e.dataset.go==="projects");e.classList.toggle("active",is);if(is)e.setAttribute("aria-current","page");else e.removeAttribute("aria-current")});
-if(page==="project")renderDetail(hash.slice(8));$("mainNav").classList.remove("open");$("mobileMenu").setAttribute("aria-expanded","false");window.scrollTo(0,0);document.title=(page==="home"?"NovaLab Studios":page==="project"?($("detailTitle").textContent+" | NovaLab Studios"):(page.charAt(0).toUpperCase()+page.slice(1))+" | NovaLab Studios")}
+if(page==="project")renderDetail(hash.slice(8));$("mainNav").classList.remove("open");$("mobileMenu").setAttribute("aria-expanded","false");$("mobileMenu").setAttribute("aria-label","Menü öffnen");window.scrollTo(0,0);document.title=(page==="home"?"NovaLab Studios":page==="project"?($("detailTitle").textContent+" | NovaLab Studios"):(page.charAt(0).toUpperCase()+page.slice(1))+" | NovaLab Studios")}
 async function loadData(){let loaded=false;try{const result=await apiRequest("/projects");if(!Array.isArray(result.projects))throw Error("Invalid projects");projects=result.projects.map(normalize);loaded=true}catch(e){console.info("NovaLab backend unavailable, using fallback",e)}
 if(!loaded){try{const r=await fetch("./data/projects.json?v=10",{cache:"no-store"});if(!r.ok)throw Error("HTTP "+r.status);const data=await r.json();if(!Array.isArray(data))throw Error("Invalid JSON");projects=data.map(normalize)}catch(e){console.info("Using default projects",e)}}
 renderProjects();if(location.hash.startsWith("#project/"))route()}
@@ -143,7 +143,11 @@ function showMediaPreviews(){clearMediaPreviews();let cover=$("fCoverFile").file
 for(const file of [...$("fGalleryFiles").files]){const img=el("img"),src=URL.createObjectURL(file);temporaryUrls.push(src);img.src=src;img.alt="Galeriebild-Vorschau";$("galleryPreview").append(img)}
 let video=$("fVideoFile").files[0];if(video)$("videoPreview").textContent="Video zum Hochladen ausgewählt: "+video.name+" ("+(video.size/1024/1024).toFixed(2)+" MB)"}
 for(const name of ["fCoverFile","fGalleryFiles","fVideoFile"])$(name).addEventListener("change",showMediaPreviews);
-$("mobileMenu").onclick=()=>{const menu=$("mainNav");const open=menu.classList.toggle("open");$("mobileMenu").setAttribute("aria-expanded",String(open))};
+function closeMobileNav(){const menu=$("mainNav");menu.classList.remove("open");const button=$("mobileMenu");button.setAttribute("aria-expanded","false");button.setAttribute("aria-label","Menü öffnen")}
+$("mobileMenu").onclick=()=>{const menu=$("mainNav");const button=$("mobileMenu");const open=menu.classList.toggle("open");button.setAttribute("aria-expanded",String(open));button.setAttribute("aria-label",open?"Menü schließen":"Menü öffnen")};
+document.addEventListener("keydown",event=>{if(event.key==="Escape")closeMobileNav()});
+document.addEventListener("click",event=>{const menu=$("mainNav"),button=$("mobileMenu");if(menu.classList.contains("open")&&!menu.contains(event.target)&&!button.contains(event.target))closeMobileNav()});
+window.addEventListener("resize",()=>{if(window.innerWidth>740)closeMobileNav()});
 $("projectSearch").oninput=e=>{query=e.target.value.trim().toLowerCase();renderProjects()};
 $("filters").onclick=e=>{const b=e.target.closest("[data-category]");if(!b)return;filter=b.dataset.category;document.querySelectorAll("[data-category]").forEach(x=>x.classList.toggle("active",x===b));renderProjects()};
 $("projectForm").addEventListener("submit",saveDraft);$("newProject").onclick=newProject;$("publish").onclick=publish;$("reload").onclick=reload;$("loginForm").addEventListener("submit",handleLogin);$("signOut").onclick=logout;$("passwordForm").addEventListener("submit",handlePasswordChange);
