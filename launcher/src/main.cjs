@@ -96,7 +96,7 @@ function cleanStudioMedia(url) {
 function normalizeCatalog(raw) {
   if (!Array.isArray(raw)) throw new Error('Katalog muss eine Liste sein.');
   const used = new Set();
-  return raw.slice(0, 48).filter(item => {
+  return raw.slice(0, 300).filter(item => {
     if (!item || !ALLOWED_GAME_ID.test(item.id || '') || used.has(item.id)) return false;
     used.add(item.id); return true;
   }).map(item => ({
@@ -356,11 +356,14 @@ async function loadCatalog() {
   const bundled = normalizeCatalog(readJson(path.join(__dirname, '..', 'catalog.json'), []));
   catalog = bundled;
   catalogSource = 'local';
+  // Display bundled, real games without making the UI wait for optional servers.
+  catalog=catalog.filter(g=>!cachedHiddenCatalog.has(g.id));
+  notify('catalog',{games:catalog,source:catalogSource});
   try {
     const response = await fetch(REMOTE_CATALOG, { signal: AbortSignal.timeout(8500), cache: 'no-store', headers: { 'User-Agent': 'NovaLab-Launcher' } });
     if (!response.ok) throw new Error('HTTP ' + response.status);
     const text = await response.text();
-    if (text.length > 100000) throw new Error('Katalog zu groß');
+    if (text.length > 650000) throw new Error('Katalog zu groß');
     const remote = normalizeCatalog(JSON.parse(text));
     if (remote.length) { catalog = remote; catalogSource = 'online'; }
   } catch { /* Local catalog keeps the launcher usable offline. */ }
