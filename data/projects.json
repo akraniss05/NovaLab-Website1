@@ -1,19 +1,20 @@
 [
   {
     "id": "novalab-code",
-    "title": "NovaLab Academy",
-    "summary": "Programmieren und Blender lernen – mit Lernpfaden, Aufgaben, Quiz und XP.",
-    "description": "NovaLab Academy ist unsere Lernplattform für Coding und Blender. Lerne Programmiersprachen wie Python, JavaScript, HTML/CSS, Lua und FiveM sowie die Grundlagen von 3D-Design.\n\nDie Plattform verbindet verständliche Lernschritte mit praxisnahen Aufgaben, Code-Entwürfen, Wissenstests, Kursprüfungen und deinem persönlichen Lernfortschritt. XP, Lern-Streaks und Erfolge machen deine Fortschritte sichtbar.\n\nAktuell befindet sich die Academy in der Beta. Accounts und Kurszugänge werden vom Team freigegeben; für einen Testzugang kannst du uns auf Discord kontaktieren.",
+    "title": "NovaLab Code",
+    "summary": "Interaktive Coding-Lernplattform mit Kursen, Aufgaben, Quiz und Lernfortschritt – auch als Windows-App.",
+    "description": "NovaLab Code ist unsere bestehende Lernplattform für Coding und Blender. Sie enthält Lernpfade, Erklärungen, praktische Aufgaben, Quiz, Kursprüfungen und persönlichen Lernfortschritt. Die Plattform ist als Web-App und Windows-Desktop-App erhältlich. Für Zugang zu den Online-Kursen wird weiterhin ein NovaLab-Account und eine Internetverbindung benötigt. Der Code wird nicht als beliebiger Prozess lokal ausgeführt.",
     "category": "coding",
-    "status": "Beta – Zugang auf Anfrage",
-    "link": "https://liverylab-academy.dev/",
+    "status": "Beta / Windows Early Access",
+    "link": "#code",
     "tags": [
       "Python",
       "JavaScript",
-      "Lua/FiveM",
-      "Blender"
+      "Lua",
+      "Quiz",
+      "Windows"
     ],
-    "cover": "",
+    "cover": "./assets/site-code.svg",
     "gallery": [],
     "video": "",
     "featured": true,
@@ -33,7 +34,7 @@
       "Mixing",
       "Sounddesign"
     ],
-    "cover": "",
+    "cover": "./assets/site-beat.svg",
     "gallery": [],
     "video": "",
     "featured": true,
@@ -52,7 +53,7 @@
       "Eigenentwicklung",
       "PC"
     ],
-    "cover": "",
+    "cover": "./assets/site-games.svg",
     "gallery": [],
     "video": "",
     "featured": true,
@@ -60,18 +61,19 @@
   },
   {
     "id": "novalab-launcher",
-    "title": "NovaLab Games Launcher",
-    "summary": "Ein eigener Desktop-Launcher für unsere Spielebibliothek, Downloads und zukünftige Updates.",
-    "description": "Unsere langfristige Vision ist ein eigener NovaLab Launcher. Nutzer sollen darin unsere Spiele entdecken, installieren, starten und auf dem aktuellen Stand halten können.\n\nDie Idee umfasst eine übersichtliche Games-Bibliothek, Downloads und ein Update-System. Aktuell befindet sich der Launcher noch in Planung – es gibt noch keine offizielle Installationsdatei.",
+    "title": "NovaLab Launcher",
+    "summary": "Eigene Windows-App für NovaLab Code, kostenlose Mini-Games, Downloads und Updates.",
+    "description": "NovaLab Launcher ist bereits als Windows-App erhältlich (Release v0.7.0, Early Access). Die Plattform verbindet kostenlose Mini-Games und NovaLab Code mit einer Spielebibliothek, Downloads und Updates. Berechtigte Administratoren können neue Projekte veröffentlichen. Der aktuelle Installer liegt auf der offiziellen Downloadseite. Die Anwendung wird weiterhin entwickelt und ist nicht digital signiert.",
     "category": "games",
-    "status": "Geplant",
-    "link": "#launcher",
+    "status": "Windows Early Access",
+    "link": "./launcher/download.html",
     "tags": [
-      "Desktop",
-      "Games",
-      "Downloads"
+      "Windows",
+      "Downloads",
+      "Updates",
+      "Bibliothek"
     ],
-    "cover": "",
+    "cover": "./assets/site-launcher.svg",
     "gallery": [],
     "video": "",
     "featured": false,
