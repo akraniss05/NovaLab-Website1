@@ -34,10 +34,13 @@ async def run():
   assert await desktop.locator('#loginPassword').get_attribute('type')=='password'
   await desktop.goto(URL+'launcher/download.html',wait_until='domcontentloaded')
   assert await desktop.locator('#download').count()==1
+  assert await desktop.locator('#download').get_attribute('href') != 'https://github.com/akraniss05/NovaLab-Website1/releases'
+  assert await desktop.locator('#download').get_attribute('aria-disabled') is None
   assert await desktop.locator('.illustration img').count()==1
   await desktop.screenshot(path=str(OUT/'website-launcher-download.png'),full_page=True,animations='disabled')
   await desktop.goto(URL+'launcher/mini-games/index.html',wait_until='domcontentloaded')
-  assert await desktop.locator('.cards').count()==1
+  await desktop.locator('.cards .card').first.wait_for(state='visible',timeout=12000)
+  assert await desktop.locator('.cards .card').count()>=1
   await desktop.screenshot(path=str(OUT/'website-mini-games.png'),full_page=True,animations='disabled')
   assert not errors, 'JavaScript page errors: '+str(errors)
   mobile=await browser.new_page(viewport={'width':390,'height':844},device_scale_factor=1,is_mobile=True,has_touch=True)
