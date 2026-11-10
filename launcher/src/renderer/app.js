@@ -66,7 +66,7 @@ function cardAction(game) {
   const entry = state.installed[game.id];
   if (entry) {
     if (game.release && isNewerVersion(game.release.version, entry.version)) return `<button class="card-button update" data-action="install" data-id="${escapeHTML(game.id)}">Update ↓</button>`;
-    return `<button class="card-button installed" data-action="launch" data-id="${escapeHTML(game.id)}">▶ Spielen</button>`;
+    return `<button class="card-button installed" data-action="launch" data-id="${escapeHTML(game.id)}">▶ ${game.type === 'app' ? 'Öffnen' : 'Spielen'}</button>`;
   }
   if (game.release && state.platform === 'win32') return `<button class="card-button" data-action="install" data-id="${escapeHTML(game.id)}">${game.release.format === 'html' ? 'Mini-Spiel laden' : 'Installieren'} ↓</button>`;
   if (game.website) return `<button class="card-button" data-action="visit" data-id="${escapeHTML(game.id)}">Entdecken ↗</button>`;
@@ -124,7 +124,7 @@ function openDetails(id) {
 }
 function closeDetails() { detailId=null; $('detailsOverlay').classList.add('hidden'); }
 function renderHome() {
-  const featured=[...state.games].filter(g=>g.type==='game').sort((a,b)=>Number(!!b.featured)-Number(!!a.featured)||Number(!!b.release)-Number(!!a.release))[0];
+  const featured=[...state.games].filter(g=>g.type==='game'||g.type==='app').sort((a,b)=>Number(!!b.featured)-Number(!!a.featured)||Number(!!b.release)-Number(!!a.release))[0];
   const hero=document.querySelector('.hero');
   if(featured && hero){
     const art=hero.querySelector('.hero-visual');
