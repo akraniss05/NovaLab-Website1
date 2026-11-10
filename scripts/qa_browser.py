@@ -44,7 +44,9 @@ async def run():
   await mobile.locator('#mobileMenu').click()
   assert 'open' in (await mobile.locator('#mainNav').get_attribute('class') or '')
   await mobile.locator('#mainNav [data-go="launcher"]').click()
-  assert await mobile.locator('[data-page="launcher"]').is_visible()
+  await mobile.wait_for_url('**/#launcher',timeout=6000)
+  await mobile.locator('[data-page="launcher"]').wait_for(state='visible',timeout=6000)
+  assert not await mobile.locator('#mainNav').evaluate("(e)=>e.classList.contains('open')"), 'Mobile menu did not close after navigation'
   assert not mobile_errors,'Mobile JavaScript page errors: '+str(mobile_errors)
   await browser.close()
   print('OK: desktop/mobile navigation, image layout, download links, admin login, no JS errors, 4 screenshots')
