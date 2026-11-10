@@ -1,6 +1,6 @@
 'use strict';
 const { contextBridge, ipcRenderer } = require('electron');
-const allowed=new Set(['list','detail','save','upload-media','media-remove','choose-build','upload-build','publish','refresh-catalog']);
+const allowed=new Set(['list','detail','save','upload-media','media-remove','choose-build','upload-build','publish','refresh-catalog','legacy-list','legacy-visibility','bulk-archive','delete']);
 contextBridge.exposeInMainWorld('studio',{
  invoke(name,...args){
   if(!allowed.has(name))return Promise.reject(new Error('Unbekannte Studio-Aktion.'));
