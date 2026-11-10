@@ -242,7 +242,7 @@ Deno.serve(async(req:Request)=>{
      localFilesAffected:false,remainingOrphans:[...failedMedia,...failedBuilds]});
   }
   if(endpoint==='list'&&req.method==='GET'){
-   const {data,error}=await db.from('novalab_studio_games').select('id,title,genre,status,visibility,featured,updated_at,created_at').order('updated_at',{ascending:false}).limit(100);
+   const {data,error}=await db.from('novalab_studio_games').select('id,title,genre,kind,status,visibility,featured,updated_at,created_at').order('updated_at',{ascending:false}).limit(100);
    if(error)throw error;return reply({games:data||[]});
   }
   if(endpoint==='detail'&&req.method==='GET'){
