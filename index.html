@@ -119,11 +119,11 @@
 <label class="field">Schlagwörter (mit Kommas getrennt)<input id="fTags" placeholder="Open World, Multiplayer, PC"></label>
 <div class="line"></div><h2>Medien & Galerie</h2><p class="muted tiny">Du kannst Bilder direkt hochladen oder ihre HTTPS-Links einsetzen. Videos lassen sich über YouTube, Vimeo oder MP4/WebM verlinken; kleinere Video-Dateien können ebenfalls hochgeladen werden.</p>
 <label class="field">Titelbild als URL<input id="fCoverUrl" placeholder="https://example.com/cover.webp"></label>
-<label class="field">Oder Titelbild hochladen (PNG/JPG/WebP, max. 4 MB)<input type="file" id="fCoverFile" accept="image/jpeg,image/png,image/webp"></label>
+<label class="field">Oder Titelbild hochladen (PNG/JPG/WebP, max. 4 MB)<input type="file" id="fCoverFile" accept="image/jpeg,image/png,image/webp"></label><div class="upload-preview" id="coverPreview" aria-live="polite"></div>
 <label class="field">Galerie-Bildlinks (ein Link pro Zeile)<textarea id="fGallery" placeholder="https://…&#10;https://…" style="min-height:83px"></textarea></label>
-<label class="field">Zusätzliche Galeriebilder hochladen (mehrere möglich)<input id="fGalleryFiles" type="file" accept="image/jpeg,image/png,image/webp" multiple></label>
+<label class="field">Zusätzliche Galeriebilder hochladen (mehrere möglich)<input id="fGalleryFiles" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><div class="upload-preview" id="galleryPreview" aria-live="polite"></div>
 <label class="field">Projektvideo (YouTube, Vimeo oder HTTPS-MP4/WebM)<input id="fVideoUrl" placeholder="https://www.youtube.com/watch?v=…"></label>
-<label class="field">Oder kleines Video hochladen (MP4/WebM, max. 12 MB)<input id="fVideoFile" type="file" accept="video/mp4,video/webm"></label>
+<label class="field">Oder kleines Video hochladen (MP4/WebM, max. 12 MB)<input id="fVideoFile" type="file" accept="video/mp4,video/webm"></label><p class="state" id="videoPreview" aria-live="polite"></p>
 <label class="checkline"><input type="checkbox" id="fFeatured" checked> Auf der Startseite hervorheben</label>
 <div class="admin-actions"><button class="btn btn-ghost" type="submit">Änderungen übernehmen</button><button class="btn btn-primary" type="button" id="publish">Auf Website veröffentlichen ↗</button></div>
 <p id="adminStatus" class="state" role="status"></p>
