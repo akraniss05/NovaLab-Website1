@@ -1,47 +1,80 @@
 [
   {
     "id": "novalab-code",
-    "title": "NovaLab Academy – Code lernen",
-    "description": "Lerne Python, JavaScript, HTML/CSS, Lua, FiveM, Blender und weitere Themen mit Lernpfaden, Praxisaufgaben, Quiz, Prüfungen und XP. Beta-Zugang auf Anfrage.",
+    "title": "NovaLab Academy",
+    "summary": "Programmieren und Blender lernen – mit Lernpfaden, Aufgaben, Quiz und XP.",
+    "description": "NovaLab Academy ist unsere Lernplattform für Coding und Blender. Lerne Programmiersprachen wie Python, JavaScript, HTML/CSS, Lua und FiveM sowie die Grundlagen von 3D-Design.\n\nDie Plattform verbindet verständliche Lernschritte mit praxisnahen Aufgaben, Code-Entwürfen, Wissenstests, Kursprüfungen und deinem persönlichen Lernfortschritt. XP, Lern-Streaks und Erfolge machen deine Fortschritte sichtbar.\n\nAktuell befindet sich die Academy in der Beta. Accounts und Kurszugänge werden vom Team freigegeben; für einen Testzugang kannst du uns auf Discord kontaktieren.",
     "category": "coding",
-    "status": "Beta · Zugang auf Anfrage",
-    "url": "https://liverylab-academy.dev/",
-    "icon": "code"
+    "status": "Beta – Zugang auf Anfrage",
+    "link": "https://liverylab-academy.dev/",
+    "tags": [
+      "Python",
+      "JavaScript",
+      "Lua/FiveM",
+      "Blender"
+    ],
+    "cover": "",
+    "gallery": [],
+    "video": "",
+    "featured": true,
+    "updated": "2026-11-10"
   },
   {
     "id": "novalab-beatmaker",
-    "title": "Beat Maker Lernplattform",
-    "description": "Eine neue Lernplattform für Beats, Rhythmus, Bass und Musikproduktion. Geplant sind praxisnahe Übungen, verschiedene Musikstile und Grundlagen des Mixings.",
+    "title": "NovaLab Beat Maker",
+    "summary": "Unsere geplante Lernplattform für Beats, Rhythmus, Mixing und Musikproduktion.",
+    "description": "NovaLab Beat Maker ist ein kreatives Lernprojekt rund um Musikproduktion. Geplant ist ein verständlicher Einstieg in Rhythmus, Drums, Basslines, verschiedene Musikstile und Grundlagen des Mixings.\n\nDie Plattform soll Musiklernen mit praktischen Übungen verbinden – von den ersten Beats bis zur eigenen kreativen Idee. Der gezeigte Sequencer auf der Website ist bislang eine Designvorschau, keine spielbare Musik-App.\n\nDie Plattform befindet sich noch in Entwicklung; ein offizieller öffentlicher App-Link wurde bisher nicht bestätigt.",
     "category": "music",
     "status": "In Entwicklung",
-    "url": "#music",
-    "icon": "music"
+    "link": "#music",
+    "tags": [
+      "Beats",
+      "Rhythmus",
+      "Mixing",
+      "Sounddesign"
+    ],
+    "cover": "",
+    "gallery": [],
+    "video": "",
+    "featured": true,
+    "updated": "2026-11-10"
   },
   {
     "id": "novalab-game1",
-    "title": "Unser erstes NovaLab-Spiel",
-    "description": "Ein eigenes Spiel befindet sich in Planung. Als Nächstes stehen Spielkonzept, Prototyp und erste Tests im Fokus; noch kein öffentlicher Download.",
+    "title": "NovaLab Game 01",
+    "summary": "Unser erstes eigenes Spiel befindet sich in der Konzeptphase – der Anfang eines neuen Gaming-Projekts.",
+    "description": "NovaLab Studios plant die Entwicklung eines eigenen Spiels. Der erste Schritt ist, ein solides Konzept zu erstellen: Welche Spielidee passt zu unserem Team, welche Mechaniken sind technisch machbar und wie soll das Spielerlebnis aussehen?\n\nAnschließend sollen ein Prototyp, interne Tests und weitere Verbesserungen folgen. Spielname, Genre, Umfang, Erscheinungstermin und mögliche Multiplayer-Funktionen sind aktuell noch nicht verbindlich festgelegt.\n\nEs gibt derzeit keine öffentliche spielbare Version. Später wollen wir hier Neuigkeiten, Bilder, Videos und Downloads veröffentlichen.",
     "category": "games",
-    "status": "In Planung",
-    "url": "#games",
-    "icon": "game"
+    "status": "Konzeptphase",
+    "link": "#games",
+    "tags": [
+      "In Planung",
+      "Eigenentwicklung",
+      "PC"
+    ],
+    "cover": "",
+    "gallery": [],
+    "video": "",
+    "featured": true,
+    "updated": "2026-11-10"
   },
   {
     "id": "novalab-launcher",
     "title": "NovaLab Games Launcher",
-    "description": "Unsere Vision für einen eigenen Desktop-Launcher, über den später NovaLab-Spiele installiert, gestartet und aktualisiert werden können.",
+    "summary": "Ein eigener Desktop-Launcher für unsere Spielebibliothek, Downloads und zukünftige Updates.",
+    "description": "Unsere langfristige Vision ist ein eigener NovaLab Launcher. Nutzer sollen darin unsere Spiele entdecken, installieren, starten und auf dem aktuellen Stand halten können.\n\nDie Idee umfasst eine übersichtliche Games-Bibliothek, Downloads und ein Update-System. Aktuell befindet sich der Launcher noch in Planung – es gibt noch keine offizielle Installationsdatei.",
     "category": "games",
-    "status": "Konzept",
-    "url": "#launcher",
-    "icon": "game"
-  },
-  {
-    "id": "novalab-projects",
-    "title": "Weitere NovaLab-Projekte",
-    "description": "Wir entwickeln außerdem weitere Web-Apps und Lernideen, die wir im Laufe der Zeit vorstellen.",
-    "category": "tools",
-    "status": "Weitere Ideen",
-    "url": "#projects",
-    "icon": "grid"
+    "status": "Geplant",
+    "link": "#launcher",
+    "tags": [
+      "Desktop",
+      "Games",
+      "Downloads"
+    ],
+    "cover": "",
+    "gallery": [],
+    "video": "",
+    "featured": false,
+    "updated": "2026-11-10"
   }
 ]
