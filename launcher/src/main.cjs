@@ -33,6 +33,7 @@ const gameRoot = () => path.resolve(settings.installRoot || path.join(app.getPat
 const statePath = () => path.join(app.getPath('userData'), 'games.json');
 const settingsPath = () => path.join(app.getPath('userData'), 'settings.json');
 const statsPath = () => path.join(app.getPath('userData'), 'game-stats.json');
+const catalogHiddenPath = () => path.join(app.getPath('userData'), 'catalog-hidden.json');
 let win;
 let installed = {};
 let settings = { checkUpdatesAutomatically: true, installRoot: '' };
@@ -40,6 +41,7 @@ let gameStats = {};
 let downloads = null;
 const runningGames = new Map();
 let catalog = [];
+let cachedHiddenCatalog = new Set();
 let catalogSource = 'local';
 let activeDownload = null;
 let updaterState = { status: 'idle', message: 'Bereit zur Updateprüfung.', progress: 0 };
@@ -373,11 +375,14 @@ async function loadCatalog() {
     if(Array.isArray(studio.games)){
       if(studio.games.some(g=>g.id==='community-novalab-code')) catalog=catalog.filter(g=>g.id!=='novalab-code');
       catalog=normalizeCatalog([...studio.games,...catalog]);
-      const exclusions=new Set(Array.isArray(studio.excludedIds)?studio.excludedIds:[]);
+      const exclusions=new Set(Array.isArray(studio.excludedIds)?studio.excludedIds.filter(x=>ALLOWED_GAME_ID.test(x)):[]);
+      cachedHiddenCatalog=exclusions;
+      await writeJsonAtomic(catalogHiddenPath(),[...exclusions]);
       catalog=catalog.filter(g=>!exclusions.has(g.id));
       catalogSource='online';
     }
   }catch{/* Studio-Katalog offline: bisherige Spiele bleiben verfügbar. */}
+  catalog=catalog.filter(g=>!cachedHiddenCatalog.has(g.id));
   notify('catalog', { games: catalog, source: catalogSource });
   return { games: catalog, source: catalogSource };
 }
@@ -680,6 +685,7 @@ if (!singleInstance) app.quit();
 else app.on('second-instance', () => { if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
 app.whenReady().then(async () => {
   if (!singleInstance) return;
+  cachedHiddenCatalog=new Set((readJson(catalogHiddenPath(),[])||[]).filter(x=>typeof x==='string'&&ALLOWED_GAME_ID.test(x)));
   installed = readJson(statePath(), {});
   if (!installed || typeof installed !== 'object' || Array.isArray(installed)) installed = {};
   settings = { ...settings, ...readJson(settingsPath(), {}) };
