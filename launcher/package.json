@@ -1,7 +1,7 @@
 {
   "name": "novalab-launcher",
   "productName": "NovaLab Launcher",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "NovaLab Desktop Game Client: Mini-Games, Bibliothek, Academy, Community, Admin Studio und zuverlässige Updates",
   "main": "src/main.cjs",
   "private": true,
@@ -9,7 +9,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "check": "node --check src/main.cjs && node --check src/download-manager.cjs && node --check src/update-controller.cjs && node --check src/preload.cjs && node --check src/renderer/app.js && node --test test/*.test.cjs",
+    "check": "node --check src/main.cjs && node --check src/download-manager.cjs && node --check src/update-controller.cjs && node --check src/preload.cjs && node --check src/publisher-preload.cjs && node --check src/renderer/app.js && node --check src/renderer/publisher.js && node --test test/*.test.cjs",
     "build:win": "electron-builder --win nsis --publish never",
     "release:win": "electron-builder --win nsis --publish always"
   },
