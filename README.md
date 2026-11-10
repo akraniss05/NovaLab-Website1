@@ -1,40 +1,57 @@
-# NovaLab Studios – offizielle Projektwebsite
+# NovaLab Studios – offizielle Website
 
-Die NovaLab-Website stellt das gemeinsame Studio, dessen Lernplattformen, Spielideen und die eigene Spieleplattform vor. Visuelles Konzept: Dark-Violett / Neon mit Stadthintergrund und den Team-Profilbildern.
+Die neue NovaLab Studios Website ist als hochqualitativer, responsiver Studioauftritt gestaltet: dunkles, cinematografisches Design, violetter Stadtbanner, echtes NovaLab-Logo, die beiden Teamprofile sowie Projektkarten mit eigenen Detailseiten.
 
-## Projekte und Status (Stand: 10. November 2026)
+## Live Website
+GitHub Pages (bereits als Hosting vorgesehen):
+https://akraniss05.github.io/NovaLab-Website1/
 
-| Bereich | Status | Link |
-| --- | --- | --- |
-| NovaLab Academy / Coding-Lernplattform | Beta, Konto-Freigabe auf Anfrage | https://liverylab-academy.dev/ |
-| Beat Maker Lernplattform | In Entwicklung, **kein bestätigter öffentlicher App-Link** | `#music` |
-| Erstes NovaLab-Spiel | **In Planung**; keine spielbare Version vorhanden | `#games` |
-| NovaLab Launcher | Konzept, noch keine Installationsdatei | `#launcher` |
+Die Website liegt vollständig im Root des Branches `main`. Wenn GitHub Pages unter **Settings → Pages → Deploy from a branch → main → / (root)** aktiviert ist, werden Änderungen an diesem Branch veröffentlicht. Der externe Live-Status konnte hier nicht automatisch bestätigt werden.
 
-Die Beat-Maker-Seite beschreibt das Lernkonzept für Rhythmus, Drums, Bass, Musikstile und Mixing. Der gezeigte 16-Step-Sequencer ist eine **grafische Vorschau**, keine funktionierende Musiksoftware.
+## Navigation
+- Startseite
+- Projekte (Suchfunktion, Filter, Galerie, Videos und Detailansichten)
+- Lernplattformen (kompakte Coding- & Beat-Maker-Seiten)
+- Games (erstes Spiel in Planung)
+- Launcher (Roadmap, noch kein Download)
+- Team, Support und Projektverwaltung über den Footer
 
-Die Game-Seite zeigt den beabsichtigten Entwicklungsprozess (Konzept → Prototyp → Tests → Release) ohne verbindliche Termine. Keine erfundenen Gameplay-Funktionen, Screenshots oder Downloads.
+## Projektverwaltung
+Die Administration ist über den Footer → **Projektverwaltung** erreichbar.
 
-## Navigation und Inhalte
+**Hinweis:** Das ist kein unabhängiger geschützter Web-Login. Die öffentliche GitHub-Pages-Website besitzt kein eigenes Backend.
 
-- `#home`: Vorstellung von NovaLab Studios, Team, Projektkarten und Coding-Spotlight
-- `#projects`: Filterbarer Projektkatalog mit Kategorien Coding, Musik, Games und Tools
-- `#academy`: Coding-/Blender-Kurse, Lernpfade, Aufgaben, Quiz und Web-App-Link
-- `#music`: Beat Maker-Lernkonzept und geplante Lernmodule
-- `#games`: Erstes geplantes Spiel und Entwicklungsfahrplan
-- `#launcher`: Vision der Spielebibliothek und Softwareverteilung
-- `#team`: Discord-Profil-Links
-- `#support`: Community und FAQ
-- `#admin`: GitHub-basierte Pflege des JSON-Projektkatalogs
+Zum Bearbeiten werden benötigt:
+1. GitHub-Konto mit Schreibzugriff auf `akraniss05/NovaLab-Website1`.
+2. GitHub Fine-grained Personal Access Token für genau dieses Repository mit **Contents: Read and write**.
+3. Den Token im Admin-Panel eingeben und auf **Verbinden** klicken; anschließend Projekte hinzufügen, ändern oder löschen.
+4. Danach **Auf Website veröffentlichen** drücken. Erst dann werden Änderungen via GitHub API in `data/projects.json` committed.
+5. Bei Bedarf Token über **Trennen** aus dem Arbeitsspeicher entfernen.
 
-## Links
-- NovaLab Code Repository: https://github.com/akraniss05/NovaLab-Code
-- Coding Web-App: https://liverylab-academy.dev/
-- NovaLab Community: https://discord.gg/SZhYa6Nnmy
-- Website: https://akraniss05.github.io/NovaLab-Website1/
+**Token niemals in Chatnachrichten, Screenshots, Repositories oder an andere Personen weitergeben.** Der Token wird nicht in `localStorage` gespeichert.
 
-## Hosting & Admin
+## Bilder und Videos
+- Titelbild: URL oder Datei (JPG/PNG/WebP), maximal 4 MB.
+- Galerie: mehrere hochgeladene Bilder oder HTTPS-Bildlinks.
+- Video: YouTube/Vimeo-URL oder HTTPS-MP4/WebM; zusätzlich ist das Hochladen von kleinen Video-Dateien (maximal 12 MB) vorgesehen.
+- Dateien werden beim Veröffentlichen via GitHub Contents API nach `assets/uploads/` hochgeladen; die Projektinformationen werden anschließend aktualisiert.
+- Eingebettete YouTube-Videos verwenden `youtube-nocookie.com`; unerkannte Videos werden als externe Links gezeigt.
+- Für größere Videodateien empfiehlt sich YouTube oder ein eigens dafür geeigneter Storage/CDN.
 
-GitHub Pages über Branch `main` und Root-Verzeichnis. Die statische `index.html` enthält CSS, JavaScript und eingebettete Grafiken; Projektinformationen liegen in `data/projects.json`.
+Wichtig: Alle hochgeladenen Dateien sind öffentlich. GitHub Pages ist kein geschützter Speicher. Für produktive Benutzeraccounts, Shop/Zahlungen oder private Downloads wird ein echtes Backend benötigt.
 
-Der Admin-Katalog-Editor verwendet für berechtigte Repository-Mitglieder einen manuell eingegebenen GitHub Fine-Grained Token mit `Contents: read/write` ausschließlich für das Projekt-Repository. **Keinen Token in den Quellcode committen.** Es gibt noch keinen eigenständigen sicheren Login-Server für die Website. Änderungen im Editor werden erst durch einen expliziten GitHub-Commit veröffentlicht.
+## Projekte
+- **NovaLab Academy:** https://liverylab-academy.dev/ – Coding- und Blender-Lernplattform (Beta)
+- **NovaLab Beat Maker:** Musik-Lernprojekt, in Entwicklung
+- **NovaLab Game 01:** erstes eigenes Spiel in der Konzeptphase
+- **NovaLab Launcher:** geplante eigenständige PC-Spieleplattform
+- Discord: https://discord.gg/SZhYa6Nnmy
+
+## Dateien
+- `index.html`: Website und alle Seiten
+- `styles.css`: Design und responsive Layouts
+- `app.js`: Navigation, Projekte, Detailansichten und GitHub-Verwaltung
+- `data/projects.json`: öffentlich sichtbarer Projektkatalog
+- `assets/uploads/`: wird erst bei Medien-Uploads angelegt
+
+© NovaLab Studios.
