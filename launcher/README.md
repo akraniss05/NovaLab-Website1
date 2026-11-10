@@ -1,3 +1,7 @@
+# NovaLab Launcher v0.5.1 — Startreihenfolge und Dateischutz korrigiert
+
+Die Download-Warteschlange startet erst nach dem Laden des Katalogs. Spieleupdates überschreiben keine fremden Installationsordner.
+
 # NovaLab Desktop Launcher v0.5.0 — Phase 1 + 2
 
 Siehe [PHASES-1-2.md](./PHASES-1-2.md) für den aktuellen Entwicklungsstand, Build-Anweisungen, echte Funktionen, Risiken und Tests.

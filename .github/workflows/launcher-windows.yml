@@ -49,7 +49,7 @@ jobs:
           for asset in dist/*.blockmap; do
             if [ -f "$asset" ]; then assets+=("$asset"); fi
           done
-          gh release create "v${VERSION}" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "NovaLab Desktop Client v${VERSION}" --notes "Erste öffentliche Mini-Games-Version. Spiele lassen sich freiwillig herunterladen, offline spielen und einzeln aktualisieren. Windows 64-Bit, Early Access, noch nicht digital signiert."
+          gh release create "v${VERSION}" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "NovaLab Desktop Client v${VERSION}" --notes "NovaLab 0.5.1: persistente Downloadwarteschlange, HTTP Range Resume, SHA-256, Rollback bei Installationsfehlern, lokale Spielzeit und wählbarer Installationsordner. Windows x64, Early Access, nicht digital signiert."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Test-Installer als Workflow-Artefakt hochladen

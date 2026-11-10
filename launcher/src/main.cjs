@@ -374,6 +374,13 @@ async function installVerifiedGame(task) {
     if (fs.existsSync(destination)) {
       const link = await fsp.lstat(destination);
       if (link.isSymbolicLink()) throw new Error('Installationsverzeichnis ist ein Link.');
+      if (!previous) throw new Error('Ein fremder Ordner mit dieser Spiele-ID existiert bereits. Dateien bleiben unangetastet.');
+      if (previous.installRoot) {
+        const marker = readJson(path.join(destination, '.novalab-install.json'), null);
+        if (marker?.id !== task.id || marker?.version !== previous.version) {
+          throw new Error('Installationsmarkierung ungültig. Fremde Dateien werden nicht überschrieben.');
+        }
+      }
       if (previous?.installRoot && path.resolve(previous.installRoot) !== root) throw new Error('Installationspfad-Konflikt.');
       await fsp.rename(destination, backup); backedUp = true;
     }
@@ -539,11 +546,14 @@ app.whenReady().then(async () => {
   gameStats = readJson(statsPath(), {});
   if (!gameStats || Array.isArray(gameStats) || typeof gameStats !== 'object') gameStats = {};
   downloads = new DownloadManager({ directory: path.join(app.getPath('userData'), 'download-cache'),
-    onChange: tasks => notify('download-list', { tasks }), onReady: installVerifiedGame });
+    onChange: tasks => notify('download-list', { tasks }), onReady: installVerifiedGame, autoStart: false });
   await downloads.init();
   setupUpdater();
   createWindow();
+  // A resumed download must not validate a release before the catalog is ready.
   await Promise.allSettled([loadCatalog(), restoreAccount()]);
+  downloads.autoStart = true;
+  downloads._kick();
   setInterval(() => loadCatalog().catch(() => {}), 10 * 60 * 1000);
   if (settings.checkUpdatesAutomatically) setTimeout(() => checkUpdates().catch(() => {}), 12000);
   setInterval(() => { if (settings.checkUpdatesAutomatically) checkUpdates().catch(() => {}); }, 6 * 60 * 60 * 1000);

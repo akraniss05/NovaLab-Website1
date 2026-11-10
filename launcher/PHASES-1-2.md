@@ -1,4 +1,4 @@
-# NovaLab Launcher 0.5.0 — Phasen 1 und 2
+# NovaLab Launcher 0.5.1 — Phasen 1 und 2
 
 ## Architekturentscheidung
 
@@ -34,7 +34,7 @@ npm run check
 npm run build:win
 ```
 
-Preview-Installer: `launcher/dist/NovaLab-Launcher-Setup-0.5.0.exe`. Erst ein **erfolgreich veröffentlichter GitHub-Release mit `latest.yml`** kann vom Autoupdater installiert werden. Dieser Quellstand ist keine Bestätigung, dass ein Release-Build erfolgreich auf einem Windows-PC installiert und durchgetestet wurde.
+Preview-Installer: `launcher/dist/NovaLab-Launcher-Setup-0.5.1.exe`. Erst ein **erfolgreich veröffentlichter GitHub-Release mit `latest.yml`** kann vom Autoupdater installiert werden. Dieser Quellstand ist keine Bestätigung, dass ein Release-Build erfolgreich auf einem Windows-PC installiert und durchgetestet wurde.
 
 Hinweis zur Build-Reproduzierbarkeit: Momentan gibt es **noch kein `package-lock.json`**; deshalb sind die direkten Abhängigkeitsversionen fixiert, aber transitive npm-Abhängigkeiten nicht vollständig eingefroren. Für bitgenau wiederholbare Builds muss ein verifizierter Lockfile erzeugt und im CI `npm ci` verwendet werden.
 
@@ -81,3 +81,6 @@ npm run check
 4. Cloud-Bibliothek, Profile/Freunde, News und Achievements mit RLS und separaten Release-Tests.
 
 Referenzen: Electron Security https://www.electronjs.org/docs/latest/tutorial/security/ , electron-builder Auto Update https://www.electron.build/docs/features/auto-update/ , Microsoft Code Signing https://learn.microsoft.com/windows/apps/package-and-deploy/code-signing-options .
+
+## Nachtrag 0.5.1
+Die Queue wird erst gestartet, wenn der Katalog geladen ist. Bei Updates prüft der Installer zusätzlich, dass vorhandene Zielordner tatsächlich vom NovaLab Launcher verwaltet werden.
