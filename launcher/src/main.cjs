@@ -100,7 +100,7 @@ function normalizeCatalog(raw) {
     id: item.id,
     title: String(item.title || item.id).slice(0, 90),
     subtitle: String(item.subtitle || '').slice(0, 130),
-    description: String(item.description || '').slice(0, 1000),
+    description: String(item.description || '').slice(0, 12000),
     type: ['game', 'app', 'tool'].includes(item.type) ? item.type : 'game',
     status: String(item.status || 'In Entwicklung').slice(0, 60),
     tags: (Array.isArray(item.tags) ? item.tags : []).slice(0, 6).map(x => String(x).slice(0, 28)),
@@ -370,8 +370,10 @@ async function loadCatalog() {
   } catch { /* Community API may be offline. Bundled games remain available. */ }
   try {
     const studio=await studioRequest('catalog',{auth:false});
-    if(Array.isArray(studio.games)&&studio.games.length){
+    if(Array.isArray(studio.games)){
       catalog=normalizeCatalog([...studio.games,...catalog]);
+      const exclusions=new Set(Array.isArray(studio.excludedIds)?studio.excludedIds:[]);
+      catalog=catalog.filter(g=>!exclusions.has(g.id));
       catalogSource='online';
     }
   }catch{/* Studio-Katalog offline: bisherige Spiele bleiben verfügbar. */}
@@ -768,6 +770,19 @@ register('window', action => {
 });
 
 registerPublisher('list',()=>studioRequest('list'));
+registerPublisher('legacy-list',()=>studioRequest('legacy-list'));
+registerPublisher('legacy-visibility',async data=>{
+ const result=await studioRequest('legacy-visibility',{method:'POST',json:data});
+ await loadCatalog();return result;
+});
+registerPublisher('bulk-archive',async data=>{
+ const result=await studioRequest('bulk-archive',{method:'POST',json:data});
+ await loadCatalog();return result;
+});
+registerPublisher('delete',async data=>{
+ const result=await studioRequest('delete',{method:'POST',json:data});
+ await loadCatalog();return result;
+});
 registerPublisher('detail',id=>{
   if(typeof id!=='string'||!/^community-[a-z0-9][a-z0-9-]{2,49}$/.test(id))throw new Error('Ungültige Spiel-ID.');
   return studioRequest('detail?id='+encodeURIComponent(id));
