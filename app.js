@@ -96,5 +96,6 @@ $("mobileMenu").onclick=()=>{const menu=$("mainNav");const open=menu.classList.t
 $("projectSearch").oninput=e=>{query=e.target.value.trim().toLowerCase();renderProjects()};
 $("filters").onclick=e=>{const b=e.target.closest("[data-category]");if(!b)return;filter=b.dataset.category;document.querySelectorAll("[data-category]").forEach(x=>x.classList.toggle("active",x===b));renderProjects()};
 $("projectForm").addEventListener("submit",saveDraft);$("newProject").onclick=newProject;$("connect").onclick=connect;$("disconnect").onclick=disconnect;$("publish").onclick=publish;$("reload").onclick=reload;
+$("discoverNovaLab").addEventListener("click",()=>document.getElementById("introNovaLab").scrollIntoView({behavior:"smooth",block:"start"}));
 window.addEventListener("hashchange",route);$("year").textContent=new Date().getFullYear();renderProjects();route();loadData();
 })();
