@@ -6,7 +6,9 @@ const safeMedia=url=>typeof url==='string'&&/^https:\/\/ekgxotvvhkmeuxvuwbei\.su
 const fmtDate=value=>value?new Date(value).toLocaleDateString('de-DE',{day:'2-digit',month:'short',year:'numeric'}):'–';
 const size=bytes=>Number.isFinite(Number(bytes))?(Number(bytes)/1048576).toFixed(2)+' MB':'–';
 const blank=()=>({id:'',title:'',summary:'',description:'',developer:'NovaLab Studios',publisher:'NovaLab Studios',genre:'Indie',tags:[],status:'In Entwicklung',featured:false,features:{},requirements:{},visibility:'draft'});
-let games=[], detail=null, draft=blank(), currentView='dashboard', savedId='', dirty=false, busy=false;
+let games=[], legacyGames=[], detail=null, draft=blank(), currentView='dashboard', savedId='', dirty=false, busy=false;
+const selected=new Set();
+let pendingDelete=null;
 const mediaKinds=[['cover','Hochkant-Cover','Vertikales Spielbild'],['banner','Hauptbanner','Breites Hintergrundbild'],['screenshot','Screenshots','Gameplay-Bilder (mehrere)'],['video','Trailer & Videos','MP4 / WEBM, bis 8 MB']];
 function message(text,error=false){
  const el=$('globalMessage');el.className='message'+(error?' error':'');el.textContent=text;
@@ -24,19 +26,41 @@ function renderCounts(){
  $('countDrafts').textContent=games.filter(g=>g.visibility==='draft').length;
  $('countFeatured').textContent=games.filter(g=>g.featured&&g.visibility==='published').length;
 }
+
 function row(game){
- const badge=game.visibility==='published'?'ÖFFENTLICH':game.visibility==='unlisted'?'NICHT GELISTET':game.visibility==='archived'?'ARCHIVIERT':'ENTWURF';
- return '<div class="game-row"><div class="game-thumb">✦</div><div><strong>'+escapeHTML(game.title)+'</strong><small>'+escapeHTML(game.id)+' · '+escapeHTML(game.genre||'Indie')+' · '+fmtDate(game.updated_at)+' &nbsp; <span class="status-tag '+(game.visibility==='published'?'published':'')+'">'+badge+'</span></small></div><div class="row-actions"><button class="outline" data-act="edit" data-id="'+escapeHTML(game.id)+'">Bearbeiten</button><button class="outline" data-act="preview" data-id="'+escapeHTML(game.id)+'">Vorschau</button></div></div>';
+ const legacy=game.source==='github', archived=game.visibility==='archived';
+ const badge=archived?'ARCHIVIERT':game.visibility==='published'?'ÖFFENTLICH':game.visibility==='unlisted'?'NICHT GELISTET':'ENTWURF';
+ const buttons=legacy?'<button class="outline" data-act="legacy-toggle" data-id="'+escapeHTML(game.id)+'" data-hide="'+(!archived)+'">'+(archived?'Wiederherstellen':'Archivieren')+'</button>':
+ '<button class="outline" data-act="edit" data-id="'+escapeHTML(game.id)+'">Bearbeiten</button><button class="outline" data-act="preview" data-id="'+escapeHTML(game.id)+'">Vorschau</button>'+
+ '<button class="outline" data-act="toggle-archive" data-id="'+escapeHTML(game.id)+'">'+(archived?'Wiederherstellen':'Archivieren')+'</button>'+
+ '<button class="danger" data-act="delete" data-id="'+escapeHTML(game.id)+'">Löschen</button>';
+ return '<div class="game-row manage-row">'+
+ '<input type="checkbox" class="game-select" data-id="'+escapeHTML(game.id)+'" aria-label="'+escapeHTML(game.title)+' auswählen" '+(selected.has(game.id)?'checked':'')+'>'+
+ '<div class="game-thumb">✦</div><div><strong>'+escapeHTML(game.title)+'</strong>'+
+ '<small>'+escapeHTML(game.id)+' · '+escapeHTML(game.genre||'NovaLab')+' · '+(legacy?'GitHub-Katalog':fmtDate(game.updated_at))+
+ ' &nbsp; <span class="status-tag '+(game.visibility==='published'?'published':'')+'">'+badge+'</span>'+
+ (legacy&&!game.hasRelease?' <span class="status-tag">KEIN DOWNLOAD</span>':'')+'</small></div>'+
+ '<div class="row-actions">'+buttons+'</div></div>';
 }
 function renderLists(){
  renderCounts();
- const html=games.length?'<div class="games-list">'+games.slice(0,8).map(row).join('')+'</div>':'<p class="subtle">Noch keine Spiele veröffentlicht. Über „Neues Spiel hinzufügen“ legst du den ersten Entwurf an.</p>';
- $('dashboardGames').innerHTML=html;
+ const recent=games.length?games.slice(0,8):legacyGames.slice(0,8);
+ $('dashboardGames').innerHTML=recent.length?'<div class="games-list">'+recent.map(row).join('')+'</div>':'<p class="subtle">Noch keine Spiele. Lege einen Entwurf an.</p>';
  const q=$('gameSearch').value.toLocaleLowerCase('de');
- const found=games.filter(g=>(g.title+' '+g.id+' '+g.genre).toLocaleLowerCase('de').includes(q));
- $('gamesTable').innerHTML=found.length?'<div class="games-list">'+found.map(row).join('')+'</div>':'<p class="subtle">Keine passenden Spiele gefunden.</p>';
+ const items=[...games,...legacyGames].filter(g=>(g.title+' '+g.id+' '+(g.genre||'')).toLocaleLowerCase('de').includes(q));
+ $('gamesTable').innerHTML=items.length?'<div class="games-list">'+items.map(row).join('')+'</div>':'<p class="subtle">Keine passenden Spiele gefunden.</p>';
+ $('selectedCount').textContent=selected.size+' ausgewählt';
+ $('selectAllGames').checked=items.length>0&&items.every(g=>selected.has(g.id));
 }
-async function loadList(){const result=await call('list');if(!result)return;games=result.games||[];renderLists();hideMessage();}
+async function loadList(){
+ const result=await call('list');if(!result)return;
+ games=result.games||[];
+ const old=await call('legacy-list');
+ if(old)legacyGames=old.games||[];
+ const ids=new Set([...games,...legacyGames].map(g=>g.id));
+ for(const id of selected){if(!ids.has(id))selected.delete(id);}
+ renderLists();
+}
 function setView(view){
  if(!['dashboard','games','edit','media','builds','preview','publish'].includes(view))return;
  if(['media','builds','preview','publish'].includes(view)&&!savedId){message('Bitte zuerst den Entwurf mit Spiel-ID speichern.',true);view='edit';}
@@ -108,6 +132,58 @@ async function saveDraft(){
  if(!detail)detail={game:draft,media:[],versions:[]};else detail.game=draft;
  fillForm();message('Entwurf wurde in der NovaLab-Datenbank gespeichert.');
  await loadList();return true;
+}
+
+async function setArchived(id,archive){
+ const legacy=legacyGames.find(g=>g.id===id);
+ const item=legacy||games.find(g=>g.id===id);
+ if(!item)return message('Spiel nicht gefunden.',true);
+ if(archive&&!confirm('„'+item.title+'“ wirklich aus dem öffentlichen Store entfernen? Bereits installierte Versionen auf Nutzergeräten bleiben erhalten.'))return;
+ const result=legacy?
+   await call('legacy-visibility',{id,hide:archive}):
+   await call('publish',{id,visibility:archive?'archived':'draft'});
+ if(!result)return;
+ await loadList();
+ await call('refresh-catalog');
+ message(archive?'„'+item.title+'“ aus dem Store archiviert.':'„'+item.title+'“ wiederhergestellt (Datenbankspiele zunächst als Entwurf).');
+}
+function openDeleteModal(id){
+ const item=games.find(g=>g.id===id)||legacyGames.find(g=>g.id===id);
+ if(!item)return;
+ pendingDelete={id,title:item.title,isLegacy:item.source==='github',archived:item.visibility==='archived'};
+ $('deleteTitle').textContent='„'+item.title+'“ löschen?';
+ $('deleteNotice').textContent=pendingDelete.isLegacy?
+  'Dieser Eintrag ist im GitHub-Katalog hinterlegt. Du kannst ihn aus dem öffentlichen Store archivieren und später wiederherstellen. Die Originaldateien werden dabei nicht gelöscht.':
+  'Archivieren entfernt das Spiel sofort aus dem Store. Endgültige Löschung ist erst nach Archivieren und Eingabe des genauen Spielnamens möglich. Installationen der Nutzer bleiben unangetastet.';
+ $('deleteConfirmation').value='';
+ $('deleteConfirmLabel').classList.toggle('hidden',pendingDelete.isLegacy);
+ $('deleteFinal').disabled=pendingDelete.isLegacy;
+ $('deleteFinal').textContent=pendingDelete.isLegacy?'Nur GitHub-Archivierung möglich':'Endgültig löschen';
+ $('deleteDialog').classList.remove('hidden');
+}
+function closeDeleteModal(){$('deleteDialog').classList.add('hidden');pendingDelete=null;}
+async function deleteFinal(){
+ if(!pendingDelete||pendingDelete.isLegacy)return;
+ const {id,title,archived}=pendingDelete;
+ if(!archived){message('Bitte das Spiel vor endgültiger Löschung zuerst archivieren.',true);return;}
+ const confirmTitle=$('deleteConfirmation').value;
+ if(confirmTitle!==title){message('Bitte den exakten Spieltitel eingeben: '+title,true);return;}
+ if(!confirm('LETZTE BESTÄTIGUNG: „'+title+'“ einschließlich der zugehörigen Datenbankversionen und nicht mehr referenzierten Serverdateien endgültig löschen?'))return;
+ const result=await call('delete',{id,confirmTitle});
+ if(!result)return;
+ closeDeleteModal();selected.delete(id);
+ if(savedId===id){savedId='';draft=blank();detail=null;dirty=false;}
+ await loadList();await call('refresh-catalog');
+ message('Spiel endgültig entfernt. Lokale Dateien anderer Nutzer wurden nicht gelöscht.'+(result.storageCleanupPending?' Achtung: '+result.storageCleanupPending+' Speicherdateien müssen später manuell bereinigt werden.':''));
+}
+async function bulkArchive(archive){
+ const ids=[...selected];
+ if(!ids.length)return message('Bitte Spiele auswählen.',true);
+ if(!confirm(ids.length+' ausgewählte Spiele '+(archive?'archivieren':'wiederherstellen')+'?'))return;
+ const result=await call('bulk-archive',{ids,archive});
+ if(!result)return;
+ selected.clear();await loadList();await call('refresh-catalog');
+ message(result.changed+' Spiele verarbeitet.'+(result.errors?.length?' Fehler: '+result.errors.join('; '):''));
 }
 async function openGame(id,view='edit'){
  if(dirty&&!confirm('Ungespeicherte Änderungen verwerfen?'))return;
@@ -201,6 +277,14 @@ document.addEventListener('click',async event=>{
  const action=btn.dataset.act; if(!action)return;
  if(action==='refresh'){await loadList();if(savedId)await refreshDetail();return;}
  if(action==='new')return resetNew();
+ if(action==='legacy-toggle')return setArchived(btn.dataset.id,btn.dataset.hide==='true');
+ if(action==='toggle-archive')return setArchived(btn.dataset.id,(games.find(g=>g.id===btn.dataset.id)?.visibility!=='archived'));
+ if(action==='delete')return openDeleteModal(btn.dataset.id);
+ if(action==='delete-cancel'){closeDeleteModal();return;}
+ if(action==='delete-archive'){const id=pendingDelete?.id;closeDeleteModal();if(id)return setArchived(id,true);return;}
+ if(action==='delete-confirm')return deleteFinal();
+ if(action==='bulk-archive')return bulkArchive(true);
+ if(action==='bulk-restore')return bulkArchive(false);
  if(action==='edit')return openGame(btn.dataset.id);
  if(action==='preview')return openGame(btn.dataset.id,'preview');
  if(action==='upload-media')return uploadMedia(btn.dataset.kind);
@@ -215,5 +299,18 @@ $('editorForm').addEventListener('change',()=>{dirty=true;});
 $('editorForm').addEventListener('submit',async e=>{e.preventDefault();await saveDraft();});
 $('buildForm').addEventListener('submit',async e=>{e.preventDefault();await uploadBuild();});
 $('gameSearch').addEventListener('input',renderLists);
+$('selectAllGames').addEventListener('change',ev=>{
+ const q=$('gameSearch').value.toLocaleLowerCase('de');
+ const visible=[...games,...legacyGames].filter(g=>(g.title+' '+g.id+' '+(g.genre||'')).toLocaleLowerCase('de').includes(q));
+ for(const g of visible){if(ev.target.checked)selected.add(g.id);else selected.delete(g.id);}
+ renderLists();
+});
+document.addEventListener('change',ev=>{
+ if(!ev.target.matches('.game-select'))return;
+ if(ev.target.checked)selected.add(ev.target.dataset.id);else selected.delete(ev.target.dataset.id);
+ $('selectedCount').textContent=selected.size+' ausgewählt';
+});
+$('deleteDialog').addEventListener('click',ev=>{if(ev.target===$('deleteDialog'))closeDeleteModal();});
+document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&pendingDelete)closeDeleteModal();});
 $('mediaLightbox').addEventListener('click',event=>{if(event.target===$('mediaLightbox')){$('mediaLightbox').classList.add('hidden');$('lightboxImg').src='';}});
 loadList().catch(e=>message(e.message,true));
