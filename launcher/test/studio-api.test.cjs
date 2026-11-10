@@ -4,9 +4,18 @@ const assert=require('node:assert/strict');
 const API='https://ekgxotvvhkmeuxvuwbei.supabase.co/functions/v1/novalab-studio-api';
 const LIVE=process.env.NOVALAB_RUN_LIVE_TESTS==='1';
 async function request(path,opts={}) {
- const response=await fetch(API+'/'+path,{...opts,signal:AbortSignal.timeout(12000)});
- const data=await response.json();
- return {response,data};
+ // Live Windows runner network is occasionally delayed; retry only transport timeouts,
+ // never failed HTTP assertions or unexpected API responses.
+ for(let attempt=0;attempt<2;attempt++){
+  try {
+   const response=await fetch(API+'/'+path,{...opts,signal:AbortSignal.timeout(20000)});
+   const data=await response.json();
+   return {response,data};
+  } catch(error) {
+   if(attempt===1 || !['TimeoutError','AbortError','TypeError'].includes(error?.name)) throw error;
+  }
+ }
+ throw new Error('Network request was not completed');
 }
 test('Studio catalog is publicly readable with real game array',{skip:!LIVE},async()=>{
  const {response,data}=await request('catalog');
