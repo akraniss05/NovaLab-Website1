@@ -101,3 +101,36 @@ html,body{background:#0d1320}
 .library-choices{display:flex;gap:7px;flex-wrap:wrap}.library-choices .secondary-button{padding:8px 12px;font-size:11px}
 .details-side .secondary-button{width:100%;margin-top:8px}
 @media(max-width:1120px){.library-toolbar{flex-wrap:wrap;gap:12px}}
+
+/* NovaLab Studio 0.6 · Games-first storefront, supplied design references */
+.publisher-invite{display:flex;justify-content:space-between;align-items:center;gap:20px;background:radial-gradient(ellipse at 92% 5%,#51409b63,transparent 54%),linear-gradient(135deg,#1a2850,#17152c);border-color:#7560c08c;margin:14px 0 23px}
+.publisher-invite h2{margin:5px 0 8px;font-size:21px}.publisher-invite p{max-width:630px;color:#aebddd;line-height:1.6}
+.publisher-invite .primary-button{white-space:nowrap}
+.project-art{background-repeat:no-repeat;position:relative;background-blend-mode:normal}
+.project-art[style*="background-image"] .card-art-symbol{opacity:0;pointer-events:none}
+.project-art[style*="background-image"] .art-corner{background:#060915b8;border-radius:5px;padding:3px 7px}
+.hero-visual.has-game-banner{background-size:cover;background-position:center}
+.hero-visual.has-game-banner>*{opacity:0;visibility:hidden}
+.hero:has(.has-game-banner) .hero-content{z-index:1}
+.hero:has(.has-game-banner) .hero-title{font-size:clamp(30px,3.8vw,60px);line-height:1.03;letter-spacing:-1px;max-width:610px;overflow-wrap:anywhere;color:#f4f1ff;text-shadow:0 5px 25px #05050cc0}
+.details-hero{background-position:center;background-size:cover}
+.details-game-head{display:flex;gap:21px;align-items:start}
+.details-cover{width:132px;min-width:132px;height:186px;border-radius:10px;object-fit:cover;border:1px solid #837cc2;box-shadow:0 10px 35px #0008}
+.details-game-head>div{min-width:0}
+.details-markdown{line-height:1.65;color:#bbcbe5;overflow-wrap:anywhere}
+.details-markdown h3,.details-markdown h4{color:#fff;margin:18px 0 8px}
+.details-markdown p{margin:7px 0}
+.details-extended{margin:0 25px 25px;padding:18px 18px 23px;background:#161e31dd;border:1px solid #394160;border-radius:13px}
+.details-extended>h3{margin:0 0 15px;color:#f5f4ff;font-size:17px}
+.details-media-gallery{display:flex;gap:11px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:12px}
+.details-media-gallery button{border:1px solid #39486e;border-radius:9px;background:#0d172c;padding:0;flex:0 0 234px;height:145px;scroll-snap-align:start;overflow:hidden;cursor:zoom-in}
+.details-media-gallery img{width:100%;height:100%;object-fit:cover}
+.details-media-gallery video{width:260px;height:145px;object-fit:contain;border:1px solid #39486e;border-radius:9px;background:#000;flex:0 0 260px}
+.details-requirements{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.details-requirements>div{background:#0e162a;padding:13px;border-radius:10px}
+.details-requirements h4{font-size:12px;letter-spacing:.4px;color:#bcaaff;margin:0 0 7px}
+.details-requirements p{color:#c3d0e5;font-size:13px;white-space:pre-wrap;margin:0;line-height:1.6}
+.media-lightbox{position:fixed;z-index:80;inset:0;background:#040713f5;display:flex;align-items:center;justify-content:center;padding:45px}
+.media-lightbox img{max-width:100%;max-height:100%;object-fit:contain;border-radius:7px}
+.media-lightbox button{position:absolute;right:25px;top:20px;background:#25304c;color:#fff;border:1px solid #6b79a4;border-radius:9px;padding:10px 14px}
+@media(max-width:1050px){.publisher-invite{flex-wrap:wrap}.details-game-head{flex-direction:column}.details-cover{width:104px;min-width:104px;height:146px}}
