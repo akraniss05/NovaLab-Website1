@@ -179,6 +179,13 @@ class DownloadManager {
     if (offset > this.maxBytes) throw new Error('Ungültiger Downloadcache.');
     let response = await this.request(t.url, { headers: offset ? { Range: 'bytes=' + offset + '-' } : {}, signal });
     if (offset && response.status === 416) {
+      // A partial download can already contain the complete ZIP when Windows
+      // was closed during verification/installation. Avoid downloading it again.
+      const completeHash=await hashFile(file);
+      if (completeHash === t.sha256) {
+        t.total=offset; t.bytes=offset; t.speed=0; t.eta=0; this._emit();
+        return;
+      }
       await fsp.rm(file, { force: true }); offset = 0;
       response = await this.request(t.url, { signal });
     }
