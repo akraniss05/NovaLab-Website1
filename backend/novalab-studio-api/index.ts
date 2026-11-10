@@ -6,6 +6,8 @@ const BUILD_BUCKET = 'novalab-launcher-games';
 const CORS = { 'access-control-allow-origin':'*', 'access-control-allow-headers':'authorization,content-type', 'access-control-allow-methods':'GET,POST,OPTIONS', 'cache-control':'no-store' };
 const VALID_ID = /^community-[a-z0-9][a-z0-9-]{2,49}$/;
 const VERSION = /^\d+\.\d+\.\d+$/;
+const LEGACY_CATALOG = 'https://raw.githubusercontent.com/akraniss05/NovaLab-Website1/main/launcher/catalog.json';
+const LEGACY_ID = /^[a-z0-9][a-z0-9-]{1,59}$/;
 const MIME: Record<string,string> = { 'image/png':'.png', 'image/jpeg':'.jpg', 'image/webp':'.webp', 'video/mp4':'.mp4', 'video/webm':'.webm' };
 const formats = new Set(['html','windows']);
 const kinds = new Set(['cover','banner','screenshot','video']);
@@ -110,6 +112,39 @@ function zipEntries(data:Uint8Array){
  }
  return entries;
 }
+
+async function legacyEntries() {
+  const res=await fetch(LEGACY_CATALOG,{signal:AbortSignal.timeout(8000)});
+  if(!res.ok)throw new Error('GitHub-Katalog ist momentan nicht erreichbar.');
+  const raw=await res.text();
+  requireGood(raw.length<120000,'Katalog zu groß.');
+  const items=JSON.parse(raw);
+  requireGood(Array.isArray(items),'Katalog fehlerhaft.');
+  return items.filter(g=>LEGACY_ID.test(g?.id||'')).map(g=>({
+    id:g.id,title:text(g.title,80),format:g.release?.format||'',
+    hasRelease:!!(g.release?.url&&g.release?.sha256),
+    source:'github',visibility:'published'
+  }));
+}
+async function suppressed() {
+  const {data,error}=await db.from('novalab_catalog_suppressions').select('id');
+  if(error)throw error;
+  return new Set((data||[]).map(x=>x.id));
+}
+async function ensureKnownLegacy(id:string) {
+  requireGood(LEGACY_ID.test(id),'Katalog-ID ungültig.');
+  return (await legacyEntries()).find(x=>x.id===id)||null;
+}
+async function removeOrphanFiles(bucket:string,paths:string[]) {
+ const failed:string[]=[];
+ for(let i=0;i<paths.length;i+=100){
+  const chunk=paths.slice(i,i+100);
+  const {error}=await db.storage.from(bucket).remove(chunk);
+  if(error){failed.push(...chunk);continue;}
+ }
+ return failed;
+}
+
 Deno.serve(async(req:Request)=>{
  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:CORS});
  const endpoint=new URL(req.url).pathname.split('/').filter(Boolean).pop()||'';
@@ -118,10 +153,88 @@ Deno.serve(async(req:Request)=>{
    const {data,error}=await db.from('novalab_studio_games').select('*').eq('visibility','published').order('featured',{ascending:false}).order('updated_at',{ascending:false}).limit(40);
    if(error)throw error;
    const games=await Promise.all((data||[]).map(async g=>buildPublic(g,await getMedia(g.id),newest(await getVersions(g.id)))));
-   return reply({games});
+   const hidden=await suppressed();
+   return reply({games,excludedIds:[...hidden]});
   }
   const account=await authAdmin(req);
   if(!account)return bad('Administrator-Anmeldung erforderlich.',403);
+
+  if(endpoint==='legacy-list'&&req.method==='GET'){
+   const [items,hidden]=await Promise.all([legacyEntries(),suppressed()]);
+   return reply({games:items.map(g=>({...g,visibility:hidden.has(g.id)?'archived':'published'}))});
+  }
+  if(endpoint==='legacy-visibility'&&req.method==='POST'){
+   const body=await jsonBody(req),id=text(body.id,65),hide=body.hide;
+   if(typeof hide!=='boolean'||!await ensureKnownLegacy(id))return bad('Unbekannter Katalogeintrag oder ungültige Aktion.');
+   if(hide){
+    const {error}=await db.from('novalab_catalog_suppressions').upsert({
+      id,archived_by:account.id,archived_at:new Date().toISOString(),reason:text(body.reason,200)
+    },{onConflict:'id'});
+    if(error)throw error;
+   }else{
+    const {error}=await db.from('novalab_catalog_suppressions').delete().eq('id',id);
+    if(error)throw error;
+   }
+   await audit(account,id,hide?'archive-github-catalog':'restore-github-catalog',{hide});
+   return reply({success:true,id,hidden:hide});
+  }
+  if(endpoint==='bulk-archive'&&req.method==='POST'){
+   const body=await jsonBody(req);
+   if(!Array.isArray(body.ids)||body.ids.length<1||body.ids.length>30||body.ids.some((id:any)=>typeof id!=='string'||!LEGACY_ID.test(id)))
+    return bad('Maximal 30 gültige Spiel-IDs pro Aktion.');
+   const archive=body.archive===true;
+   const legacy=await legacyEntries(),legacyIDs=new Set(legacy.map(x=>x.id));
+   let changed=0;const errors:string[]=[];
+   for(const id of new Set<string>(body.ids)){
+    try{
+     if(legacyIDs.has(id)){
+      if(archive){
+       const {error}=await db.from('novalab_catalog_suppressions').upsert({id,archived_by:account.id,archived_at:new Date().toISOString()},{onConflict:'id'});
+       if(error)throw error;
+      }else{
+       const {error}=await db.from('novalab_catalog_suppressions').delete().eq('id',id);
+       if(error)throw error;
+      }
+     }else{
+      const game=await getGame(id);if(!game)throw Error('Spiel existiert nicht.');
+      const {error}=await db.from('novalab_studio_games').update({visibility:archive?'archived':'draft',updated_at:new Date().toISOString()}).eq('id',id);
+      if(error)throw error;
+     }
+     await audit(account,id,archive?'bulk-archive':'bulk-restore');
+     changed++;
+    }catch(e){errors.push(id+': '+(e instanceof Error?e.message:'Fehler'));}
+   }
+   return reply({success:true,changed,errors});
+  }
+  if(endpoint==='delete'&&req.method==='POST'){
+   const body=await jsonBody(req),id=text(body.id,65),confirmation=text(body.confirmTitle,80);
+   if(!VALID_ID.test(id)||!confirmation)return bad('Spiel-ID und eingegebener Spielname erforderlich.');
+   const game=await getGame(id);
+   if(!game)return bad('Kein Datenbankspiel unter dieser ID. GitHub-Katalogspiele können nur archiviert werden.',404);
+   if(confirmation!==game.title)return bad('Bestätigung fehlgeschlagen: Spielname stimmt nicht.');
+   if(game.visibility!=='archived')return bad('Das Spiel muss zuerst archiviert werden.');
+   const {data:media,error:em}=await db.from('novalab_studio_media').select('file_path').eq('game_id',id);
+   const {data:versions,error:ev}=await db.from('novalab_studio_versions').select('file_path').eq('game_id',id);
+   if(em||ev)throw em||ev;
+   const {error:ed}=await db.from('novalab_studio_games').delete().eq('id',id);
+   if(ed)throw ed;
+   // Keep audit rows: game_id is intentionally a text field without FK.
+   await audit(account,id,'permanent-delete',{title:game.title,medias:media?.length||0,versions:versions?.length||0});
+   const orphanMedia:string[]=[],orphanBuilds:string[]=[];
+   for(const m of media||[]){
+    const {count,error}=await db.from('novalab_studio_media').select('id',{count:'exact',head:true}).eq('file_path',m.file_path);
+    if(!error&&count===0)orphanMedia.push(m.file_path);
+   }
+   for(const b of versions||[]){
+    const {count,error}=await db.from('novalab_studio_versions').select('id',{count:'exact',head:true}).eq('file_path',b.file_path);
+    const {count:legacyCount,error:legacyError}=await db.from('novalab_launcher_games').select('id',{count:'exact',head:true}).eq('file_path',b.file_path);
+    if(!error&&!legacyError&&count===0&&legacyCount===0)orphanBuilds.push(b.file_path);
+   }
+   const failedMedia=await removeOrphanFiles(MEDIA_BUCKET,orphanMedia);
+   const failedBuilds=await removeOrphanFiles(BUILD_BUCKET,orphanBuilds);
+   return reply({success:true,deleted:true,id,storageCleanupPending:failedMedia.length+failedBuilds.length,
+     localFilesAffected:false,remainingOrphans:[...failedMedia,...failedBuilds]});
+  }
   if(endpoint==='list'&&req.method==='GET'){
    const {data,error}=await db.from('novalab_studio_games').select('id,title,genre,status,visibility,featured,updated_at,created_at').order('updated_at',{ascending:false}).limit(100);
    if(error)throw error;return reply({games:data||[]});
