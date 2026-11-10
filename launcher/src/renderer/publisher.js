@@ -5,7 +5,7 @@ const escapeHTML=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','
 const safeMedia=url=>typeof url==='string'&&/^https:\/\/ekgxotvvhkmeuxvuwbei\.supabase\.co\/storage\/v1\/object\/public\/novalab-studio-media\/community-[a-z0-9-]+\/[a-f0-9-]+\.(?:png|jpg|webp|mp4|webm)$/.test(url)?url:'';
 const fmtDate=value=>value?new Date(value).toLocaleDateString('de-DE',{day:'2-digit',month:'short',year:'numeric'}):'–';
 const size=bytes=>Number.isFinite(Number(bytes))?(Number(bytes)/1048576).toFixed(2)+' MB':'–';
-const blank=()=>({id:'',title:'',summary:'',description:'',developer:'NovaLab Studios',publisher:'NovaLab Studios',genre:'Indie',tags:[],status:'In Entwicklung',featured:false,features:{},requirements:{},visibility:'draft'});
+const blank=()=>({id:'',title:'',summary:'',description:'',developer:'NovaLab Studios',publisher:'NovaLab Studios',genre:'Indie',kind:'game',tags:[],status:'In Entwicklung',featured:false,features:{},requirements:{},visibility:'draft'});
 let games=[], legacyGames=[], detail=null, draft=blank(), currentView='dashboard', savedId='', dirty=false, busy=false;
 const selected=new Set();
 let pendingDelete=null;
@@ -81,7 +81,7 @@ function setView(view){
 function collect(){
  const form=$('editorForm'),v=name=>form.elements.namedItem(name)?.value||'';
  const next={id:v('id').trim().toLowerCase(),title:v('title').trim(),summary:v('summary').trim(),description:v('description'),
- developer:v('developer'),publisher:v('publisher'),genre:v('genre'),
+ developer:v('developer'),publisher:v('publisher'),genre:v('genre'),kind:v('kind'),
  tags:v('tags').split(',').map(x=>x.trim()).filter(Boolean).slice(0,12),status:v('status'),
  featured:form.elements.namedItem('featured').checked,
  features:{multiplayer:form.elements.namedItem('multiplayer').checked,controller:form.elements.namedItem('controller').checked,languages:v('languages')},
