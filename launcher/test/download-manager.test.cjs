@@ -111,17 +111,30 @@ test('cancel deletes partial bytes and removes task', async t=>{
   assert.equal(dl.list().length,0);
 });
 
-test('graceful launcher shutdown keeps partial download queued, not failed',async t=>{
-  // Large slow fixture prevents a race where the whole archive already completed.
-  const f=await fixture(t,{chunkDelay:3,repeat:900000});
-  const dl=manager(f,async()=>{});await dl.init();await dl.enqueue(game(f));
-  await waitFor(()=>dl.list()[0].bytes>30000 && dl.list()[0].phase==='downloading');
-  await dl.close();
-  assert.equal(dl.list()[0].phase,'queued');
+test('graceful shutdown preserves unfinished request and resumes the existing cache',async t=>{
+  const f=await fixture(t);
+  const fs=require('node:fs/promises');
+  const prefix=f.content.subarray(0,90000);
+  await fs.writeFile(path.join(f.dir,'orbit-dash.part'),prefix);
+  // The request is intentionally held before headers. This deterministically
+  // exercises an actual unfinished request and its AbortSignal on every OS.
+  let requested=false;
+  const stalled=new DownloadManager({directory:f.dir,onReady:async()=>{},request:(_url,{signal})=>{
+    requested=true;
+    return new Promise((_resolve,reject)=>{
+      if(signal.aborted)return reject(new Error('aborted'));
+      signal.addEventListener('abort',()=>reject(new Error('aborted')),{once:true});
+    });
+  }});
+  await stalled.init();await stalled.enqueue(game(f));
+  await waitFor(()=>requested && stalled.list()[0].phase==='downloading');
+  await stalled.close();
+  assert.equal(stalled.list()[0].phase,'queued');
+  assert.equal((await fs.stat(path.join(f.dir,'orbit-dash.part'))).size,prefix.length);
   const reboot=manager(f,async()=>{});t.after(()=>reboot.close());
   await reboot.init();
   await waitFor(()=>reboot.list()[0].phase==='complete',12000);
-  assert.ok(f.headersSeen.some(x=>x?.startsWith('bytes=')),'expected HTTP range resume');
+  assert.ok(f.headersSeen.some(x=>x?.startsWith('bytes=')),'expected a real HTTP Range retry');
 });
 test('updated digest for same version cannot silently reuse stale partial bytes',async t=>{
   const f=await fixture(t,{chunkDelay:7});
