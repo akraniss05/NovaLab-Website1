@@ -76,7 +76,7 @@ function gameCard(game, options = {}) {
   const color = /^#[0-9a-f]{6}$/i.test(game.accent) ? game.accent : '#8f73ff';
   const subtitle = game.subtitle || game.description;
   const tags = (game.tags || []).slice(0, 2).map(t => `<span class="tag">${escapeHTML(t)}</span>`).join('');
-  return `<article class="project-card"><button type="button" data-action="details" data-id="${escapeHTML(game.id)}" class="project-art" style="--accent:${color}" aria-label="${escapeHTML(game.title)} – Details öffnen"><span class="card-art-symbol">${escapeHTML(iconFor(game))}</span><span class="status-pill">${escapeHTML(game.status)}</span><span class="art-corner">NOVALAB / ${game.type === 'game' ? 'GAMES' : 'STUDIOS'}</span></button><div class="project-card-body"><div class="project-kind">${game.type === 'game' ? 'GAME / NOVALAB' : 'CREATIVE / NOVALAB'}</div><button class="card-title-button" data-action="details" data-id="${escapeHTML(game.id)}" type="button"><h3>${escapeHTML(game.title)}</h3></button><p>${escapeHTML(subtitle)}</p><div class="card-footer"><div class="tag-list">${tags}</div><div class="card-card-actions">${options.uninstall ? `<button class="card-more" data-action="uninstall" data-id="${escapeHTML(game.id)}" title="Deinstallieren" aria-label="${escapeHTML(game.title)} deinstallieren">✕</button>` : ''}${cardAction(game)}</div></div></div></article>`;
+  return `<article class="project-card"><button type="button" data-action="details" data-id="${escapeHTML(game.id)}" class="project-art" style="--accent:${color};${game.cover ? 'background-image:linear-gradient(0deg,#0d11218c,#10172533),url('+game.cover+');background-size:cover;background-position:center' : ''}" aria-label="${escapeHTML(game.title)} – Details öffnen"><span class="card-art-symbol">${escapeHTML(iconFor(game))}</span><span class="status-pill">${escapeHTML(game.status)}</span><span class="art-corner">NOVALAB / ${game.type === 'game' ? 'GAMES' : 'STUDIOS'}</span></button><div class="project-card-body"><div class="project-kind">${game.type === 'game' ? 'GAME / NOVALAB' : 'CREATIVE / NOVALAB'}</div><button class="card-title-button" data-action="details" data-id="${escapeHTML(game.id)}" type="button"><h3>${escapeHTML(game.title)}</h3></button><p>${escapeHTML(subtitle)}</p><div class="card-footer"><div class="tag-list">${tags}</div><div class="card-card-actions">${options.uninstall ? `<button class="card-more" data-action="uninstall" data-id="${escapeHTML(game.id)}" title="Deinstallieren" aria-label="${escapeHTML(game.title)} deinstallieren">✕</button>` : ''}${cardAction(game)}</div></div></div></article>`;
 }
 function libraryItems() {
   return Object.entries(state.installed || {}).map(([id, install]) => {
@@ -89,21 +89,53 @@ function renderQuickLibrary() {
   $('sidebarGameCount').textContent = String(found.length);
   $('quickLibrary').innerHTML = found.length ? found.slice(0,15).map(g => `<button type="button" class="quick-game" data-action="details" data-id="${escapeHTML(g.id)}"><span class="quick-dot"></span><span>${escapeHTML(g.title)}</span><small>${isNewerVersion(g.release?.version,state.installed[g.id]?.version) ? '↻' : '▶'}</small></button>`).join('') : '<span class="quick-empty">Installierte Spiele erscheinen hier.</span>';
 }
+function renderSafeMarkdown(value) {
+ const escaped=escapeHTML(value||'');
+ return escaped.split(/\r?\n/).map(line=>{
+  const x=line.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+  if(/^### /.test(x))return '<h4>'+x.slice(4)+'</h4>';
+  if(/^## /.test(x))return '<h3>'+x.slice(3)+'</h3>';
+  if(/^# /.test(x))return '<h3>'+x.slice(2)+'</h3>';
+  if(/^- /.test(x))return '<p>• '+x.slice(2)+'</p>';
+  return x.trim()?'<p>'+x+'</p>':'';
+ }).join('');
+}
 function openDetails(id) {
-  const game = state.games.find(g=>g.id===id) || libraryItems().find(g=>g.id===id);
-  if (!game) return toast('Spiel nicht gefunden.',true);
-  detailId = id;
-  const installed = state.installed[id];
-  const stats = state.stats?.[id] || {};
-  const favorite = favorites.includes(id);
-  const accent = /^#[0-9a-f]{6}$/i.test(game.accent||'') ? game.accent : '#8771ed';
-  const tags = (game.tags || []).map(t=>`<span class="tag">${escapeHTML(t)}</span>`).join('');
-  const version = game.release?.version || (installed?.version || 'Noch kein Release');
-  $('detailsContent').innerHTML = `<div class="details-hero" style="--accent:${accent}"><div class="details-art-symbol">${escapeHTML(iconFor(game))}</div><div class="details-hero-shade"><span class="eyebrow">NOVALAB STUDIOS / ${escapeHTML(game.type.toUpperCase())}</span><h2>${escapeHTML(game.title)}</h2><div class="details-tags">${tags}</div></div></div><div class="details-body"><div class="details-info"><span class="eyebrow">DAS SPIEL</span><p>${escapeHTML(game.description || game.subtitle || 'Ein Projekt von NovaLab Studios.')}</p><div class="details-meta"><span>STATUS <strong>${escapeHTML(game.status)}</strong></span><span>VERSION <strong>${escapeHTML(version)}</strong></span><span>PLATTFORM <strong>${game.release?.format === 'html' ? 'HTML5 / Windows' : 'Windows / Web'}</strong></span></div></div><div class="details-side"><h3>Deine Bibliothek</h3><p>${installed ? 'Dieses Spiel ist lokal installiert.' : game.release ? 'Kostenlos und auf Wunsch installierbar.' : 'Eine Veröffentlichung ist in Planung.'}</p>${cardAction(game)}<button class="secondary-button" data-action="favorite" data-id="${escapeHTML(id)}" type="button">${favorite ? '★ Aus Favoriten entfernen' : '☆ Zu Favoriten hinzufügen'}</button><p class="hint">Spielzeit: ${readableTime(stats.seconds || 0)}${stats.lastPlayed ? ' · Zuletzt: '+new Date(stats.lastPlayed).toLocaleDateString('de-DE') : ''}</p>${installed ? `<button class="secondary-button" data-action="verify-game" data-id="${escapeHTML(id)}" type="button">Dateien prüfen</button><button class="secondary-button" data-action="open-game-folder" data-id="${escapeHTML(id)}" type="button">Installationsordner öffnen</button><button class="secondary-button" data-action="uninstall" data-id="${escapeHTML(id)}" type="button">Deinstallieren</button>` : ''}<button class="secondary-button" data-action="close-details" type="button">Schließen</button></div></div>`;
-  $('detailsOverlay').classList.remove('hidden');
+ const game=state.games.find(g=>g.id===id)||libraryItems().find(g=>g.id===id);
+ if(!game)return toast('Spiel nicht gefunden.',true);
+ detailId=id;
+ const installed=state.installed[id],stats=state.stats?.[id]||{},favorite=favorites.includes(id);
+ const accent=/^#[0-9a-f]{6}$/i.test(game.accent||'')?game.accent:'#8771ed';
+ const tags=(game.tags||[]).map(t=>'<span class="tag">'+escapeHTML(t)+'</span>').join('');
+ const version=game.release?.version||installed?.version||'Noch kein Release';
+ const banner=game.banner?('background-image:linear-gradient(0deg,#080d1fe9,#121a2633 72%),url(\''+game.banner+'\');'):'';
+ const cover=game.cover?'<img class="details-cover" src="'+game.cover+'" alt="Cover '+escapeHTML(game.title)+'">':'';
+ const screenshots=(game.screenshots||[]).map(url=>'<button type="button" data-action="show-media" data-url="'+url+'"><img src="'+url+'" alt="Gameplay-Screenshot" loading="lazy"></button>').join('');
+ const videos=(game.videos||[]).map(url=>'<video controls preload="metadata" src="'+url+'"></video>').join('');
+ const requirements=game.requirements?.minimum||game.requirements?.recommended?
+ '<section class="details-extended"><h3>Systemanforderungen</h3><div class="details-requirements"><div><h4>Mindestens</h4><p>'+escapeHTML(game.requirements.minimum||'Nicht angegeben')+'</p></div><div><h4>Empfohlen</h4><p>'+escapeHTML(game.requirements.recommended||'Nicht angegeben')+'</p></div></div></section>':'';
+ const gallery=(screenshots||videos)?'<section class="details-extended"><h3>Screenshots &amp; Trailer</h3><div class="details-media-gallery">'+screenshots+videos+'</div></section>':'';
+ const log=game.release?.changelog?'<section class="details-extended"><h3>Changelog · Version '+escapeHTML(version)+'</h3><div class="details-markdown">'+renderSafeMarkdown(game.release.changelog)+'</div></section>':'';
+ $('detailsContent').innerHTML='<div class="details-hero" style="--accent:'+accent+';'+banner+'"><div class="details-hero-shade"><span class="eyebrow">NOVALAB STUDIOS / '+escapeHTML(game.type.toUpperCase())+'</span><h2>'+escapeHTML(game.title)+'</h2><div class="details-tags">'+tags+'</div></div></div>'+
+ '<div class="details-body"><div class="details-info"><div class="details-game-head">'+cover+'<div><span class="eyebrow">ÜBER DIESES SPIEL</span><p>'+escapeHTML(game.subtitle||'')+'</p><div class="details-markdown">'+renderSafeMarkdown(game.description||'Ein NovaLab Projekt.')+'</div></div></div><div class="details-meta"><span>STATUS <strong>'+escapeHTML(game.status)+'</strong></span><span>VERSION <strong>'+escapeHTML(version)+'</strong></span><span>ENTWICKLER <strong>'+escapeHTML(game.developer||'NovaLab Studios')+'</strong></span><span>PLATTFORM <strong>'+(game.release?.format==='html'?'HTML5 / Windows':'Windows')+'</strong></span>'+(game.release?.size?'<span>DOWNLOAD <strong>'+readableSize(game.release.size)+'</strong></span>':'')+'</div></div>'+
+ '<div class="details-side"><h3>Deine Bibliothek</h3><p>'+(installed?'Lokal installiert.':game.release?'Kostenlos installierbar.':'Noch kein Download veröffentlicht.')+'</p>'+cardAction(game)+'<button class="secondary-button" data-action="favorite" data-id="'+escapeHTML(id)+'" type="button">'+(favorite?'★ Aus Favoriten entfernen':'☆ Zu Favoriten hinzufügen')+'</button><p class="hint">Spielzeit: '+readableTime(stats.seconds||0)+'</p>'+(installed?'<button class="secondary-button" data-action="verify-game" data-id="'+escapeHTML(id)+'">Dateien prüfen</button><button class="secondary-button" data-action="open-game-folder" data-id="'+escapeHTML(id)+'">Installationsordner</button><button class="secondary-button" data-action="uninstall" data-id="'+escapeHTML(id)+'">Deinstallieren</button>':'')+'<button class="secondary-button" data-action="close-details">Schließen</button></div></div>'+
+ gallery+requirements+log;
+ $('detailsOverlay').classList.remove('hidden');
 }
 function closeDetails() { detailId=null; $('detailsOverlay').classList.add('hidden'); }
 function renderHome() {
+  const featured=[...state.games].filter(g=>g.type==='game').sort((a,b)=>Number(!!b.featured)-Number(!!a.featured)||Number(!!b.release)-Number(!!a.release))[0];
+  const hero=document.querySelector('.hero');
+  if(featured && hero){
+    const art=hero.querySelector('.hero-visual');
+    if(art){art.style.backgroundImage=featured.banner?'linear-gradient(0deg,#0b1028c7,#0b153333),url("'+featured.banner+'")':'';art.classList.toggle('has-game-banner',!!featured.banner);}
+    const title=hero.querySelector('.hero-title');
+    if(title)title.textContent=featured.title.toUpperCase();
+    const paragraph=hero.querySelector('.hero-content p');
+    if(paragraph)paragraph.textContent=featured.subtitle||featured.description||'Entdecke das neueste NovaLab Spiel.';
+    const button=hero.querySelector('.primary-button');
+    if(button){button.removeAttribute('data-page');button.dataset.action='details';button.dataset.id=featured.id;button.textContent=featured.release?'Spiel ansehen →':'Mehr erfahren →';}
+  }
   $('featuredGrid').innerHTML = [...state.games].sort((a,b)=>Number(!!b.release)-Number(!!a.release)).slice(0, 3).map(g => gameCard(g)).join('') || '<div class="empty">Noch keine Projekte vorhanden.</div>';
   $('libraryCount').textContent = Object.keys(state.installed).length;
   $('homeLibraryMessage').textContent = Object.keys(state.installed).length ? `${Object.keys(state.installed).length} installierte Spiele · Deine Sammlung ist bereit.` : 'Dein nächstes Lieblingsspiel wartet schon im Store.';
@@ -231,6 +263,9 @@ async function act(action, id, element) {
     $('confirmOverlay').classList.remove('hidden');
   }
   if (action === 'open-academy') return invoke('open-academy');
+  if (action === 'open-publisher') return invoke('open-publisher');
+  if (action === 'show-media') { const url=element?.dataset.url||''; if(!/^https:\/\/ekgxotvvhkmeuxvuwbei\.supabase\.co\/storage\/v1\/object\/public\/novalab-studio-media\//.test(url))return; $('mediaLightboxImage').src=url; $('mediaLightbox').classList.remove('hidden'); return; }
+  if (action === 'close-media') { $('mediaLightbox').classList.add('hidden');$('mediaLightboxImage').removeAttribute('src');return; }
   if (action === 'open-website') await invoke('open-link', 'https://akraniss05.github.io/NovaLab-Website1/');
   if (action === 'open-discord') await invoke('open-link', 'https://discord.gg/SZhYa6Nnmy');
   if (action === 'logout-account') { const x = await invoke('logout-account'); if (x) { state.account = null; selectPage('account'); renderAll(); toast('Du bist abgemeldet.'); } }
