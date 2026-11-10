@@ -23,6 +23,9 @@ async function fixture(t, { acceptsRange = true, chunkDelay = 0, repeat = 70000 
     headersSeen.push(req.headers.range || null);
     let offset = 0;
     if (acceptsRange && req.headers.range) offset = Number(req.headers.range.match(/^bytes=(\d+)-$/)?.[1] || 0);
+    if (acceptsRange && req.headers.range && offset >= content.length) {
+      res.writeHead(416, {'content-range': 'bytes */' + content.length});res.end();return;
+    }
     res.writeHead(offset ? 206 : 200, {
       'content-length': content.length - offset,
       ...(offset ? { 'content-range': `bytes ${offset}-${content.length - 1}/${content.length}` } : {})
@@ -141,4 +144,17 @@ test('an empty saved queue starts without a download request',async t=>{
   assert.deepEqual(dl.list(),[]);
   assert.equal(dl.active,null);
   assert.deepEqual(f.headersSeen,[]);
+});
+
+test('fully downloaded ZIP is SHA verified after HTTP 416 instead of fetched twice',async t=>{
+  const f=await fixture(t);
+  const fs=require('node:fs/promises');
+  await fs.writeFile(path.join(f.dir,'orbit-dash.part'),f.content);
+  let installed=false;
+  const dl=manager(f,async()=>{installed=true;});t.after(()=>dl.close());
+  await dl.init();await dl.enqueue(game(f));
+  await waitFor(()=>dl.list()[0].phase==='complete');
+  assert.equal(installed,true);
+  assert.equal(f.headersSeen.length,1,'cached complete package must not be downloaded again');
+  assert.equal(f.headersSeen[0],'bytes='+f.content.length+'-');
 });
