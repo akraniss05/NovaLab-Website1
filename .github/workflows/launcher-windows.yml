@@ -30,6 +30,10 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Quellcode überprüfen
         run: npm run check
+      - name: Studio-API prüfen (öffentlicher Katalog und Zugriffsschutz)
+        env:
+          NOVALAB_RUN_LIVE_TESTS: '1'
+        run: node --test test/studio-api.test.cjs
       - name: Windows-Installer erstellen (Vorschau)
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         run: npm run build:win
