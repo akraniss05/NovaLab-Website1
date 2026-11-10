@@ -43,6 +43,7 @@ class DownloadManager {
     this.active = null;
     this.controller = null;
     this.pausedByUser = false;
+    this.closing = false;
     this.worker = null;
     this.writeChain = Promise.resolve();
   }
@@ -89,11 +90,12 @@ class DownloadManager {
       throw new Error('Ungültiges Spiel-Release.');
     }
     const old = this.tasks.get(id);
-    if (old && old.phase !== 'complete' && old.version === release.version) {
+    if (old && old.phase !== 'complete' && old.version === release.version && old.sha256 === release.sha256.toLowerCase() && old.url === release.url && old.format === release.format && old.entry === release.entry) {
       if (old.phase === 'paused' || old.phase === 'failed') return this.resume(id);
       return publicTask(old);
     }
     if (old && this.active === id) throw new Error('Dieses Spiel wird bereits heruntergeladen.');
+    if (this.closing) throw new Error('Der Launcher wird beendet.');
     if (old && (old.version !== release.version || old.sha256 !== release.sha256)) await fsp.rm(this._part(id), { force: true });
     const t = { id, title: String(title || id).slice(0, 90), version: release.version, url: release.url,
       sha256: release.sha256.toLowerCase(), format: release.format, entry: release.entry, phase: 'queued',
@@ -129,7 +131,7 @@ class DownloadManager {
     return { ok: true };
   }
   _kick() {
-    if (this.worker || !this.autoStart) return;
+    if (this.worker || !this.autoStart || this.closing) return;
     this.worker = this._work().finally(() => { this.worker = null; if (this.list().some(t => t.phase === 'queued')) this._kick(); });
   }
   async _work() {
@@ -158,7 +160,10 @@ class DownloadManager {
         }
       } catch (error) {
         if (t.phase !== 'paused' && t.phase !== 'canceled') {
-          t.phase = 'failed'; t.error = String(error.message || error).slice(0, 200); this._emit();
+          // A graceful app shutdown keeps partial bytes resumable after relaunch.
+          t.phase = this.closing ? 'queued' : 'failed';
+          t.error = this.closing ? null : String(error.message || error).slice(0, 200);
+          t.speed = 0; t.eta = null; this._emit();
         }
       } finally {
         if (t.phase === 'canceled') { this.tasks.delete(t.id); await fsp.rm(this._part(t.id), { force: true }); }
@@ -181,6 +186,7 @@ class DownloadManager {
       offset = 0;
     }
     const range = parseContentRange(response.headers.get('content-range'));
+    if (offset && response.status === 206 && range && (range.end < range.from || (range.total && range.total <= range.end))) throw new Error('Ungültiger Content-Range vom Downloadserver.');
     if (!response.ok || !response.body || (offset && (response.status !== 206 || !range || range.from !== offset)) || (!offset && response.status === 206)) {
       throw new Error('Downloadserver hat eine ungültige Antwort geliefert (HTTP ' + response.status + ').');
     }
@@ -207,6 +213,7 @@ class DownloadManager {
     this._emit();
   }
   async close() {
+    this.closing = true;
     this.controller?.abort();
     if (this.worker) await this.worker.catch(() => {});
     await this.writeChain.catch(() => {});
