@@ -23,7 +23,7 @@ function cleanGame(g:any){
  return {
   title:text(g.title,80),summary:text(g.summary,200),description:text(g.description,12000),
   developer:text(g.developer,80)||'NovaLab Studios',publisher:text(g.publisher,80)||'NovaLab Studios',
-  genre:text(g.genre,40)||'Indie',tags,status:text(g.status,35)||'In Entwicklung',
+  genre:text(g.genre,40)||'Indie',tags,status:text(g.status,35)||'In Entwicklung',kind:['game','app','tool'].includes(g.kind)?g.kind:'game',
   featured:!!g.featured, features: typeof g.features==='object' && g.features && !Array.isArray(g.features) ? {
    multiplayer:!!g.features.multiplayer,controller:!!g.features.controller,languages:text(g.features.languages,100)
   }:{}, requirements:typeof g.requirements==='object'&&g.requirements&&!Array.isArray(g.requirements)?{
@@ -52,13 +52,19 @@ async function getGame(id:string) {
  const {data,error}=await db.from('novalab_studio_games').select('*').eq('id',id).maybeSingle();
  if(error)throw error; return data;
 }
+function vettedFirstPartyMedia(url:string){
+ return /^https:\/\/akraniss05\.github\.io\/NovaLab-Website1\/launcher\/assets\/novalab-code-(?:cover|banner)\.svg$/.test(url)?url:'';
+}
+function vettedCodeBuild(url:string){
+ return /^https:\/\/github\.com\/akraniss05\/NovaLab-Code\/releases\/download\/code-v[0-9]+\.[0-9]+\.[0-9]+\/NovaLab-Code-win-x64-v[0-9]+\.[0-9]+\.[0-9]+\.zip$/.test(url)?url:'';
+}
 async function getMedia(id:string) {
- const {data,error}=await db.from('novalab_studio_media').select('id,kind,file_path,mime_type,alt_text,sort_order').eq('game_id',id).order('sort_order',{ascending:true}).limit(80);
+ const {data,error}=await db.from('novalab_studio_media').select('id,kind,file_path,mime_type,alt_text,sort_order,external_url').eq('game_id',id).order('sort_order',{ascending:true}).limit(80);
  if(error)throw error;
- return (data||[]).map(m=>({id:m.id,kind:m.kind,alt:m.alt_text,url:publicUrl(MEDIA_BUCKET,m.file_path),order:m.sort_order}));
+ return (data||[]).map(m=>({id:m.id,kind:m.kind,alt:m.alt_text,url:vettedFirstPartyMedia(m.external_url||'')||publicUrl(MEDIA_BUCKET,m.file_path),order:m.sort_order}));
 }
 async function getVersions(id:string) {
- const {data,error}=await db.from('novalab_studio_versions').select('id,version,channel,format,entry,file_path,sha256,file_size,changelog,created_at').eq('game_id',id).order('created_at',{ascending:false}).limit(40);
+ const {data,error}=await db.from('novalab_studio_versions').select('id,version,channel,format,entry,file_path,sha256,file_size,changelog,created_at,external_url').eq('game_id',id).order('created_at',{ascending:false}).limit(40);
  if(error)throw error;return data||[];
 }
 function versionNum(v:string){return v.split('.').map(Number);}
@@ -68,10 +74,10 @@ function buildPublic(game:any,media:any[],build:any){
  const cover=pick('cover')[0]?.url||'';
  const banner=pick('banner')[0]?.url||'';
  return { id:game.id,title:game.title,subtitle:game.summary,description:game.description,
-   type:'game',status:game.status,tags:[game.genre,...game.tags].filter(Boolean),genre:game.genre,
+   type:game.kind||'game',status:game.status,tags:[game.genre,...game.tags].filter(Boolean),genre:game.genre,
    developer:game.developer,publisher:game.publisher,featured:game.featured,features:game.features,requirements:game.requirements,
    cover,banner,screenshots:pick('screenshot').map(m=>m.url),videos:pick('video').map(m=>m.url),
-   release:build?{version:build.version,url:publicUrl(BUILD_BUCKET,build.file_path),sha256:build.sha256,entry:build.entry,format:build.format,size:build.file_size,changelog:build.changelog,updated_at:build.created_at}:null };
+   release:build?{version:build.version,url:vettedCodeBuild(build.external_url||'')||publicUrl(BUILD_BUCKET,build.file_path),sha256:build.sha256,entry:build.entry,format:build.format,size:build.file_size,changelog:build.changelog,updated_at:build.created_at}:null };
 }
 function imageMatches(bytes:Uint8Array,mime:string){
  if(mime==='image/png')return bytes[0]===137&&bytes[1]===80&&bytes[2]===78&&bytes[3]===71;
@@ -223,12 +229,12 @@ Deno.serve(async(req:Request)=>{
    const orphanMedia:string[]=[],orphanBuilds:string[]=[];
    for(const m of media||[]){
     const {count,error}=await db.from('novalab_studio_media').select('id',{count:'exact',head:true}).eq('file_path',m.file_path);
-    if(!error&&count===0)orphanMedia.push(m.file_path);
+    if(!error&&count===0&&!m.file_path.startsWith('external/'))orphanMedia.push(m.file_path);
    }
    for(const b of versions||[]){
     const {count,error}=await db.from('novalab_studio_versions').select('id',{count:'exact',head:true}).eq('file_path',b.file_path);
     const {count:legacyCount,error:legacyError}=await db.from('novalab_launcher_games').select('id',{count:'exact',head:true}).eq('file_path',b.file_path);
-    if(!error&&!legacyError&&count===0&&legacyCount===0)orphanBuilds.push(b.file_path);
+    if(!error&&!legacyError&&count===0&&legacyCount===0&&!b.file_path.startsWith('external/'))orphanBuilds.push(b.file_path);
    }
    const failedMedia=await removeOrphanFiles(MEDIA_BUCKET,orphanMedia);
    const failedBuilds=await removeOrphanFiles(BUILD_BUCKET,orphanBuilds);
