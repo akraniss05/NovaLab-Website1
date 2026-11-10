@@ -60,3 +60,16 @@ test('GitHub catalog visibility rejects anonymous access',{skip:!LIVE},async()=>
   body:JSON.stringify({id:'orbit-dash',hide:true})});
  assert.equal(response.status,403);
 });
+
+test('Studio delete rejects anonymous access',{skip:!LIVE},async()=>{
+ const {response}=await request('delete',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:'community-security-test',confirmTitle:'Attacker'})});
+ assert.equal(response.status,403);
+});
+test('Studio bulk archive rejects anonymous access',{skip:!LIVE},async()=>{
+ const {response}=await request('bulk-archive',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({ids:['orbit-dash'],archive:true})});
+ assert.equal(response.status,403);
+});
+test('Studio legacy catalog is admin-only',{skip:!LIVE},async()=>{
+ const {response}=await request('legacy-list');
+ assert.equal(response.status,403);
+});
