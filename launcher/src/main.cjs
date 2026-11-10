@@ -4,6 +4,7 @@ const { app, BrowserWindow, ipcMain, shell, nativeTheme, session, protocol, dial
 const { autoUpdater } = require('electron-updater');
 const { createUpdateController } = require('./update-controller.cjs');
 const { DownloadManager, hashFile } = require('./download-manager.cjs');
+const { assertManagedInstall } = require('./install-safety.cjs');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
@@ -507,7 +508,6 @@ async function installVerifiedGame(task) {
   try {
     await fsp.mkdir(unpacked);
     await extractZip(task.archive, { dir: unpacked });
-    const relative = task.entry.split('/');
     const entry = safeEntry(unpacked, task.entry);
     const resolved = await fsp.realpath(entry), realRoot = await fsp.realpath(unpacked);
     if (!resolved.startsWith(realRoot + path.sep) || !(await fsp.stat(resolved)).isFile() ||
@@ -520,13 +520,10 @@ async function installVerifiedGame(task) {
       const link = await fsp.lstat(destination);
       if (link.isSymbolicLink()) throw new Error('Installationsverzeichnis ist ein Link.');
       if (!previous) throw new Error('Ein fremder Ordner mit dieser Spiele-ID existiert bereits. Dateien bleiben unangetastet.');
-      if (previous.installRoot) {
-        const marker = readJson(path.join(destination, '.novalab-install.json'), null);
-        if (marker?.id !== task.id || marker?.version !== previous.version) {
-          throw new Error('Installationsmarkierung ungültig. Fremde Dateien werden nicht überschrieben.');
-        }
-      }
-      if (previous?.installRoot && path.resolve(previous.installRoot) !== root) throw new Error('Installationspfad-Konflikt.');
+      // An old entry without a marker must never be silently replaced: the
+      // user can back up/migrate it manually. Data loss is worse than an update error.
+      await assertManagedInstall(root, task.id, previous.version);
+      if (previous.installRoot && path.resolve(previous.installRoot) !== root) throw new Error('Installationspfad-Konflikt.');
       await fsp.rename(destination, backup); backedUp = true;
     }
     await fsp.rename(unpacked, destination); activated = true;
@@ -569,7 +566,7 @@ function prepareMiniGames() {
     } catch { return new Response('Datei nicht gefunden', {status: 404}); }
   });
 }
-function openMiniGame(id, entry, title) {
+async function openMiniGame(id, entry, title) {
   prepareMiniGames();
   const window = new BrowserWindow({
     title: 'NovaLab Mini Game · ' + title, width: 1100, height: 760, minWidth: 620, minHeight: 480,
@@ -581,7 +578,13 @@ function openMiniGame(id, entry, title) {
   const started = Date.now();
   runningGames.set(id, window);
   window.on('closed', () => markPlay(id, started).catch(() => {}));
-  window.loadURL('novalab-game://' + id + '/' + entry.split('/').map(encodeURIComponent).join('/'));
+  try {
+    await window.loadURL('novalab-game://' + id + '/' + entry.split('/').map(encodeURIComponent).join('/'));
+  } catch (error) {
+    runningGames.delete(id);
+    if (!window.isDestroyed()) window.close();
+    throw new Error('Mini-Spiel konnte nicht geöffnet werden: ' + error.message);
+  }
 }
 
 async function installGame(id) {
@@ -601,32 +604,36 @@ async function launchGame(id) {
   if (!actualTarget.startsWith(actualBase + path.sep) || !(await fsp.stat(actualTarget)).isFile()) throw new Error('Spieldatei ist ungültig.');
   if (item.format === 'html') {
     if (!/\.html?$/i.test(actualTarget)) throw new Error('HTML-Startdatei fehlt.');
-    openMiniGame(id, item.entry, gameById(id)?.title || id);
+    await openMiniGame(id, item.entry, gameById(id)?.title || id);
     return {ok: true};
   }
   if (!/\.exe$/i.test(actualTarget)) throw new Error('Spiel-EXE fehlt.');
   const started = Date.now();
-  const child = spawn(actualTarget, [], { cwd: path.dirname(actualTarget), detached: true, stdio: 'ignore', windowsHide: false });
-  runningGames.set(id, child);
-  child.once('error', err => { runningGames.delete(id); notify('error', { message: 'Spielstart fehlgeschlagen: ' + err.message }); });
-  child.once('exit', () => markPlay(id, started).catch(() => {}));
-  child.unref();
-  return { ok: true };
+  // A child process object is not proof that Windows started the executable.
+  return new Promise((resolve,reject) => {
+    let child;
+    try { child = spawn(actualTarget, [], { cwd: path.dirname(actualTarget), detached: true, stdio: 'ignore', windowsHide: false }); }
+    catch (error) { reject(new Error('Spielstart fehlgeschlagen: '+error.message)); return; }
+    child.once('error', error => {
+      runningGames.delete(id);
+      notify('error',{message:'Spielstart fehlgeschlagen: '+error.message});
+      reject(new Error('Spielstart fehlgeschlagen: '+error.message));
+    });
+    child.once('spawn', () => {
+      runningGames.set(id,child);
+      child.once('exit', () => markPlay(id,started).catch(() => {}));
+      child.unref();
+      resolve({ok:true});
+    });
+  });
 }
 async function uninstallGame(id) {
   if (!ALLOWED_GAME_ID.test(id || '') || !installed[id]) throw new Error('Spiel nicht installiert.');
   if (runningGames.has(id)) throw new Error('Bitte das Spiel zuerst schließen.');
   if (downloads?.active === id) throw new Error('Bitte den Download erst abbrechen.');
   const root = path.resolve(installed[id].installRoot || path.join(app.getPath('userData'), 'installed-games'));
-  const destination = path.join(root, id);
-  if (path.dirname(destination) !== root || !fs.existsSync(destination) || (await fsp.lstat(destination)).isSymbolicLink()) {
-    throw new Error('Ungültiges Installationsverzeichnis.');
-  }
-  if (installed[id].installRoot) {
-    const marker = readJson(path.join(destination, '.novalab-install.json'), null);
-    if (marker?.id !== id) throw new Error('Installationsmarkierung fehlt. Dateien bleiben unberührt.');
-  }
-  await fsp.rm(destination, { recursive: true, force: true });
+  const destination = await assertManagedInstall(root, id, installed[id].version);
+  await fsp.rm(destination, { recursive: true, force: false });
   delete installed[id]; await writeJsonAtomic(statePath(), installed);
   notify('installed', { id, installed });
   return { ok: true };
@@ -638,8 +645,7 @@ async function verifyGame(id) {
   const target = safeEntry(root, rec.entry);
   const resolved = await fsp.realpath(target);
   if (!resolved.startsWith(root + path.sep) || !(await fsp.stat(resolved)).isFile()) throw new Error('Startdatei beschädigt oder gelöscht.');
-  const marker = readJson(path.join(root, '.novalab-install.json'), null);
-  if (rec.installRoot && (marker?.id !== id || marker?.version !== rec.version)) throw new Error('Installationsmarkierung ungültig.');
+  await assertManagedInstall(path.dirname(root), id, rec.version);
   return { ok: true, message: 'Startdatei und Installationsstruktur sind vorhanden. Vollständige Reparatur benötigt ein Dateimanifest.' };
 }
 function setupUpdater() {
