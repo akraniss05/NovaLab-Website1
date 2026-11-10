@@ -136,6 +136,9 @@ class DownloadManager {
   }
   async _work() {
     for (;;) {
+      // Never start a fresh task while close() is waiting for the worker.
+      // Without this guard, a queued resume after abort can deadlock shutdown.
+      if (this.closing) break;
       const t = [...this.tasks.values()].find(item => item.phase === 'queued');
       if (!t) break;
       this.active = t.id;
