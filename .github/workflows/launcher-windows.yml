@@ -38,6 +38,20 @@ jobs:
         run: npm run release:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Öffentlichen Launcher-Release für diesen Build erstellen
+        if: ${{ github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[publish-launcher]') }}
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          test -s "dist/NovaLab-Launcher-Setup-${VERSION}.exe"
+          test -s "dist/latest.yml"
+          assets=("dist/NovaLab-Launcher-Setup-${VERSION}.exe" "dist/latest.yml")
+          for asset in dist/*.blockmap; do
+            if [ -f "$asset" ]; then assets+=("$asset"); fi
+          done
+          gh release create "v${VERSION}" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "NovaLab Mini-Games Launcher v${VERSION}" --notes "Erste öffentliche Mini-Games-Version. Spiele lassen sich freiwillig herunterladen, offline spielen und einzeln aktualisieren. Windows 64-Bit, Early Access, noch nicht digital signiert."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Test-Installer als Workflow-Artefakt hochladen
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         uses: actions/upload-artifact@v4
