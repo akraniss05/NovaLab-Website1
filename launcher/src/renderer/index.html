@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https://ekgxotvvhkmeuxvuwbei.supabase.co; media-src https://ekgxotvvhkmeuxvuwbei.supabase.co; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>NovaLab Launcher</title>
   <link rel="stylesheet" href="./style.css">
   <script defer src="./app.js"></script>
@@ -75,7 +75,7 @@
         </div>
       </div>
       <div class="page hidden" id="page-admin">
-        <header class="page-header compact"><div><span class="eyebrow">ACCESS LEVEL / ADMIN</span><h1>NovaLab <span>Admin Studio.</span></h1><p>Eigene Spiele hier hochladen und für alle Nutzer freigeben.</p></div></header>
+        <header class="page-header compact"><div><span class="eyebrow">ACCESS LEVEL / ADMIN</span><h1>NovaLab <span>Admin Studio.</span></h1><p>Professionelles Publishing Studio für Medien, Versionen, Store-Vorschau und Veröffentlichungen.</p></div></header><section class="panel publisher-invite"><div><span class="eyebrow">NOVALAB PUBLISHING 2.0</span><h2>Neues Publishing Studio</h2><p>Spiele als Entwurf anlegen, Cover und Trailer hochladen, versionierte Builds verwalten, Store-Seiten prüfen und veröffentlichen.</p></div><button type="button" class="primary-button" data-action="open-publisher">✦ Publishing Studio öffnen ↗</button></section><p class="hint">Der bisherige einfache HTML5-Upload bleibt unten als Legacy-Funktion erhalten.</p>
         <div class="admin-layout">
           <form id="gameUploadForm" class="panel account-panel"><span class="eyebrow">GAME PUBLISHER</span><h2>Mini-Game veröffentlichen</h2><p>Eine einzelne <strong>.html</strong>-Datei oder eine <strong>.zip</strong>-Datei mit <code>index.html</code> im ZIP-Hauptverzeichnis. Maximal 12 MB.</p>
             <label class="form-label">Spielname<input class="studio-input" name="title" maxlength="80" minlength="3" required placeholder="Zum Beispiel: SkyRush"></label>
@@ -99,6 +99,6 @@
 </div>
 <div class="toast hidden" id="toast" role="alert"></div>
 <div class="details-backdrop hidden" id="detailsOverlay" role="presentation"><section class="details-window" role="dialog" aria-modal="true" aria-label="Spieldetails"><button class="details-close" data-action="close-details" type="button" aria-label="Details schließen">✕</button><div id="detailsContent"></div></section></div>
-<div class="modal-overlay hidden" id="confirmOverlay"><div class="confirm-modal"><span class="eyebrow">BESTÄTIGUNG</span><h2>Spiel deinstallieren?</h2><p id="confirmText">Die lokalen Dateien werden gelöscht.</p><div class="confirm-actions"><button id="cancelUninstall" class="secondary-button" type="button">Abbrechen</button><button id="confirmUninstall" class="danger-button" type="button">Deinstallieren</button></div></div></div>
+<div id="mediaLightbox" class="media-lightbox hidden"><button data-action="close-media" type="button" aria-label="Medienansicht schließen">✕</button><img id="mediaLightboxImage" alt="Spiel-Screenshot in Großansicht"></div><div class="modal-overlay hidden" id="confirmOverlay"><div class="confirm-modal"><span class="eyebrow">BESTÄTIGUNG</span><h2>Spiel deinstallieren?</h2><p id="confirmText">Die lokalen Dateien werden gelöscht.</p><div class="confirm-actions"><button id="cancelUninstall" class="secondary-button" type="button">Abbrechen</button><button id="confirmUninstall" class="danger-button" type="button">Deinstallieren</button></div></div></div>
 </body>
 </html>
