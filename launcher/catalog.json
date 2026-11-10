@@ -1,5 +1,41 @@
 [
   {
+    "id": "novalab-code",
+    "title": "NovaLab Code",
+    "subtitle": "Lerne Programmieren. Entwickle eigene Projekte. Erweitere deine Fähigkeiten.",
+    "description": "NovaLab Code ist die eigenständige Desktop-Version unserer interaktiven Coding-Lernplattform. Entdecke strukturierte Programmierkurse, bearbeite praktische Übungen und überprüfe dein Wissen mit Quizzen. Lerne Schritt für Schritt mit Lektionen, Aufgaben, Fortschritt und verschiedenen Programmiersprachen. Die vorhandene NovaLab-Code-Website wird in der App mit ihrem bestehenden Kurs- und Accountsystem ausgeliefert. Für Anmeldung, Kurse und Onlinedaten wird eine Internetverbindung benötigt.",
+    "type": "app",
+    "status": "Early Access",
+    "tags": [
+      "Lernsoftware",
+      "Programmieren",
+      "Entwicklung",
+      "Apps & Tools",
+      "Kostenlos"
+    ],
+    "genre": "Lernsoftware",
+    "developer": "NovaLab Studios",
+    "publisher": "NovaLab Studios",
+    "featured": true,
+    "accent": "#8068ff",
+    "website": "https://liverylab-academy.dev/",
+    "cover": "https://akraniss05.github.io/NovaLab-Website1/launcher/assets/novalab-code-cover.svg",
+    "banner": "https://akraniss05.github.io/NovaLab-Website1/launcher/assets/novalab-code-banner.svg",
+    "requirements": {
+      "minimum": "Windows 10/11 (64 Bit), Internetverbindung für Online-Kurse und Anmeldung",
+      "recommended": "Windows 11, 8 GB RAM, stabile Internetverbindung"
+    },
+    "release": {
+      "format": "windows",
+      "version": "1.0.1",
+      "url": "https://github.com/akraniss05/NovaLab-Code/releases/download/code-v1.0.1/NovaLab-Code-win-x64-v1.0.1.zip",
+      "sha256": "5a747472ac4e328f4277e4fab4b6758b278e1c092169c6c48d5b6d4f5292f4f3",
+      "entry": "NovaLab Code.exe",
+      "size": 164779735,
+      "changelog": "Desktop-App mit gebündelter Original-NovaLab-Code-Lernplattform, Login, Kursen, Übungen und Quizzen. Stabilitätsverbesserungen gegenüber 1.0.0."
+    }
+  },
+  {
     "id": "orbit-dash",
     "title": "Orbit Dash",
     "subtitle": "Dodge den Meteorenregen in einem schnellen Weltraum-Arcadegame.",
