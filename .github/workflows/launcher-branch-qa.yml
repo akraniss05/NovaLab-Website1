@@ -1,0 +1,64 @@
+name: NovaLab Launcher · Steam-inspired QA Branch
+on:
+  push:
+    branches:
+      - feat/launcher-steam-qa-20261111
+    paths:
+      - launcher/**
+      - .github/workflows/launcher-branch-qa.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unit-and-electron:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    defaults:
+      run:
+        working-directory: launcher
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Dependencies install
+        run: npm install --no-audit --no-fund
+      - name: Syntax, security, download and updater regression tests
+        run: npm run check
+      - name: Set up desktop test runtime
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.56.1
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libnss3 libatk-bridge2.0-0 libgtk-3-0 libasound2t64 libgbm1
+      - name: Real Electron UI navigation and screenshots
+        run: xvfb-run -a node qa/electron-smoke.cjs
+      - name: Upload real Launcher screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NovaLab-Launcher-Real-Electron-UI-QA
+          path: launcher/qa/screenshots/*.png
+          if-no-files-found: warn
+  windows-build:
+    runs-on: windows-latest
+    timeout-minutes: 27
+    defaults:
+      run:
+        working-directory: launcher
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Dependencies install
+        run: npm install --no-audit --no-fund
+      - name: Core tests on Windows
+        run: npm run check
+      - name: Build portable QA installer without release
+        run: npm run build:win
+      - name: Upload preview Windows installer (NOT published)
+        uses: actions/upload-artifact@v4
+        with:
+          name: NovaLab-Launcher-Windows-Branch-Preview
+          path: launcher/dist/NovaLab-Launcher-Setup-*.exe
+          if-no-files-found: error
