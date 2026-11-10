@@ -42,7 +42,7 @@ const {_electron:electron}=require('playwright');
   await page.locator('#discoverGrid [data-action="details"]').first().click();
   await page.locator('#detailsOverlay').waitFor({state:'visible'});
   await page.locator('#detailsOverlay [data-action="library-toggle"]').click();
-  await page.locator('#detailsOverlay [data-action="close-details"]').click();
+  await page.locator('#detailsOverlay .details-close').click();
   await page.locator('[data-page="library"]').first().click();
   await page.locator('#page-library').waitFor({state:'visible'});
   const libraryCard=page.locator('#libraryGrid .project-card');
