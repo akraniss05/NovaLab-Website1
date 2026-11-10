@@ -1,15 +1,15 @@
 {
   "name": "novalab-launcher",
   "productName": "NovaLab Launcher",
-  "version": "0.3.0",
-  "description": "NovaLab Mini Games Launcher: optionale Windows-Downloads für HTML5- und Desktop-Spiele",
+  "version": "0.4.0",
+  "description": "NovaLab Desktop Game Client: Mini-Games, Bibliothek, Academy, Community, Admin Studio und zuverlässige Updates",
   "main": "src/main.cjs",
   "private": true,
   "author": "NovaLab Studios",
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "check": "node --check src/main.cjs && node --check src/preload.cjs && node --check src/renderer/app.js",
+    "check": "node --check src/main.cjs && node --check src/update-controller.cjs && node --check src/preload.cjs && node --check src/renderer/app.js && node --test test/*.test.cjs",
     "build:win": "electron-builder --win nsis --publish never",
     "release:win": "electron-builder --win nsis --publish always"
   },

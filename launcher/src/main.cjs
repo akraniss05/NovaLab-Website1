@@ -2,6 +2,7 @@
 
 const { app, BrowserWindow, ipcMain, shell, nativeTheme, session, protocol, dialog, safeStorage } = require('electron');
 const { autoUpdater } = require('electron-updater');
+const { createUpdateController } = require('./update-controller.cjs');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
@@ -34,7 +35,8 @@ let settings = { checkUpdatesAutomatically: true };
 let catalog = [];
 let catalogSource = 'local';
 let activeDownload = null;
-let updaterState = { status: 'idle', message: '', progress: 0 };
+let updaterState = { status: 'idle', message: 'Bereit zur Updateprüfung.', progress: 0 };
+let updateController = null;
 let gameProtocolReady = false;
 let token = '';
 let account = null;
@@ -363,7 +365,7 @@ async function installGame(id) {
     const entry = safeEntry(unpacked, release.entry);
     const realRoot = await fsp.realpath(unpacked);
     const realEntry = await fsp.realpath(entry);
-    if (!realEntry.startsWith(realRoot + path.sep) || !(await fsp.stat(realEntry)).isFile()) throw new Error('Ungültige EXE im Spielarchiv');
+    if (!realEntry.startsWith(realRoot + path.sep) || !(await fsp.stat(realEntry)).isFile()) throw new Error('Ungültige Startdatei im Spielarchiv');
     if (release.format === 'html' && path.extname(entry).toLowerCase() !== '.html') throw new Error('Das Mini-Spiel muss eine HTML-Startdatei haben.');
     if (fs.existsSync(finalPath)) { await fsp.rename(finalPath, backupPath); backedUp = true; }
     await fsp.rename(unpacked, finalPath);
@@ -415,24 +417,15 @@ async function uninstallGame(id) {
   notify('installed', { id, installed });
   return { ok: true };
 }
-function setUpdater(patch) {
-  updaterState = { ...updaterState, ...patch };
-  notify('updater', { update: updaterState });
-}
 function setupUpdater() {
-  autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.on('checking-for-update', () => setUpdater({ status: 'checking', message: 'Suche nach Launcher-Updates …' }));
-  autoUpdater.on('update-available', info => setUpdater({ status: 'available', message: 'Neue Version ' + info.version + ' verfügbar', version: info.version }));
-  autoUpdater.on('update-not-available', () => setUpdater({ status: 'current', message: 'Du verwendest die neueste Version.' }));
-  autoUpdater.on('download-progress', progress => setUpdater({ status: 'downloading', message: 'Update wird heruntergeladen …', progress: Math.round(progress.percent) }));
-  autoUpdater.on('update-downloaded', () => setUpdater({ status: 'downloaded', message: 'Update bereit. Neustart zur Installation.', progress: 100 }));
-  autoUpdater.on('error', error => setUpdater({ status: 'error', message: 'Updateprüfung fehlgeschlagen: ' + error.message }));
+  updateController = createUpdateController({
+    updater: autoUpdater,
+    app,
+    notify: update => { updaterState = update; notify('updater', { update }); }
+  });
 }
 async function checkUpdates() {
-  if (!app.isPackaged) { setUpdater({ status: 'development', message: 'Updates funktionieren nach der Installation einer Release-Version.' }); return updaterState; }
-  try { await autoUpdater.checkForUpdates(); } catch (e) { setUpdater({ status: 'error', message: 'Updateprüfung fehlgeschlagen: ' + e.message }); }
-  return updaterState;
+  return updateController.check();
 }
 function createWindow() {
   nativeTheme.themeSource = 'dark';
@@ -470,8 +463,8 @@ app.whenReady().then(async () => {
   createWindow();
   await Promise.allSettled([loadCatalog(), restoreAccount()]);
   setInterval(() => loadCatalog().catch(() => {}), 10 * 60 * 1000);
-  if (settings.checkUpdatesAutomatically) setTimeout(checkUpdates, 12000);
-  setInterval(() => { if (settings.checkUpdatesAutomatically) checkUpdates(); }, 6 * 60 * 60 * 1000);
+  if (settings.checkUpdatesAutomatically) setTimeout(() => checkUpdates().catch(() => {}), 12000);
+  setInterval(() => { if (settings.checkUpdatesAutomatically) checkUpdates().catch(() => {}); }, 6 * 60 * 60 * 1000);
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
@@ -483,14 +476,8 @@ register('install', id => installGame(id));
 register('launch', id => launchGame(id));
 register('uninstall', id => uninstallGame(id));
 register('check-update', () => checkUpdates());
-register('download-update', async () => {
-  if (!app.isPackaged || updaterState.status !== 'available') throw new Error('Es ist kein Launcher-Update verfügbar.');
-  await autoUpdater.downloadUpdate(); return { ok: true };
-});
-register('restart-update', () => {
-  if (updaterState.status !== 'downloaded') throw new Error('Noch kein Update heruntergeladen.');
-  setImmediate(() => autoUpdater.quitAndInstall(false, true)); return { ok: true };
-});
+register('download-update', () => updateController.download());
+register('restart-update', () => updateController.restart());
 register('set-settings', async patch => {
   if (!patch || typeof patch.checkUpdatesAutomatically !== 'boolean') throw new Error('Ungültige Einstellung');
   settings.checkUpdatesAutomatically = patch.checkUpdatesAutomatically;

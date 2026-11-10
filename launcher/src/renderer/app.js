@@ -9,6 +9,17 @@ let filter = 'all';
 let confirmId = null;
 let toastTimeout;
 let download = null;
+let detailId = null;
+let favorites = [];
+try { favorites = JSON.parse(localStorage.getItem('novalab:favorites') || '[]').filter(x => typeof x === 'string').slice(0, 100); } catch { favorites = []; }
+const versionNumber = v => String(v || '0.0.0').split('.').map(n => parseInt(n, 10) || 0);
+function isNewerVersion(latest, current) {
+  const a=versionNumber(latest), b=versionNumber(current);
+  for (let i=0;i<3;i++) { if (a[i] !== b[i]) return a[i] > b[i]; }
+  return false;
+}
+const RELEASE_URL = 'https://github.com/akraniss05/NovaLab-Website1/releases/latest';
+
 const $ = id => document.getElementById(id);
 const escapeHTML = value => String(value == null ? '' : value).replace(/[&<>"']/g, x => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[x]);
 const phaseLabel = value => ({ starting: 'Download wird vorbereitet …', downloading: 'Spieldateien werden heruntergeladen …', extracting: 'Dateien werden entpackt …', error: 'Installation fehlgeschlagen' }[value] || 'Bereit');
@@ -26,11 +37,11 @@ async function invoke(action, ...args) {
 }
 function selectPage(name) {
   if (!PAGE_IDS.includes(name)) return;
+  if (name === 'admin' && (state.account?.role !== 'admin' || state.account?.mustChangePassword)) { toast('Admin-Zugriff erst nach Passwortänderung möglich.', true); return selectPage('account'); }
   page = name;
   for (const id of PAGE_IDS) $('page-' + id).classList.toggle('hidden', id !== name);
-  document.querySelectorAll('[data-page].nav-item').forEach(btn => btn.classList.toggle('active', btn.dataset.page === name));
+  document.querySelectorAll('.nav-item[data-page],.top-nav [data-page]').forEach(btn => btn.classList.toggle('active', btn.dataset.page === name));
   $('scrollArea').scrollTo({ top: 0, behavior: 'instant' });
-  if (name === 'admin' && (state.account?.role !== 'admin' || state.account?.mustChangePassword)) { toast('Admin-Zugriff erst nach Passwortänderung möglich.', true); return selectPage('account'); }
   if (name === 'admin') loadAdminGames();
   if (name === 'library') renderLibrary();
   if (name === 'discover') renderDiscover();
@@ -47,7 +58,7 @@ function iconFor(game) {
 function cardAction(game) {
   const entry = state.installed[game.id];
   if (entry) {
-    if (game.release && entry.version !== game.release.version) return `<button class="card-button update" data-action="install" data-id="${escapeHTML(game.id)}">Update ↓</button>`;
+    if (game.release && isNewerVersion(game.release.version, entry.version)) return `<button class="card-button update" data-action="install" data-id="${escapeHTML(game.id)}">Update ↓</button>`;
     return `<button class="card-button installed" data-action="launch" data-id="${escapeHTML(game.id)}">▶ Spielen</button>`;
   }
   if (game.release && state.platform === 'win32') return `<button class="card-button" data-action="install" data-id="${escapeHTML(game.id)}">${game.release.format === 'html' ? 'Mini-Spiel laden' : 'Installieren'} ↓</button>`;
@@ -58,11 +69,36 @@ function gameCard(game, options = {}) {
   const color = /^#[0-9a-f]{6}$/i.test(game.accent) ? game.accent : '#8f73ff';
   const subtitle = game.subtitle || game.description;
   const tags = (game.tags || []).slice(0, 2).map(t => `<span class="tag">${escapeHTML(t)}</span>`).join('');
-  return `<article class="project-card"><div class="project-art" style="--accent:${color}"><span class="card-art-symbol">${escapeHTML(iconFor(game))}</span><span class="status-pill">${escapeHTML(game.status)}</span><span class="art-corner">NOVALAB / ${game.type === 'game' ? 'GAMES' : 'STUDIOS'}</span></div><div class="project-card-body"><div class="project-kind">${game.type === 'game' ? 'GAME / NOVALAB' : 'CREATIVE / NOVALAB'}</div><h3>${escapeHTML(game.title)}</h3><p>${escapeHTML(subtitle)}</p><div class="card-footer"><div class="tag-list">${tags}</div><div class="card-card-actions">${options.uninstall ? `<button class="card-more" data-action="uninstall" data-id="${escapeHTML(game.id)}" title="Deinstallieren" aria-label="${escapeHTML(game.title)} deinstallieren">✕</button>` : ''}${cardAction(game)}</div></div></div></article>`;
+  return `<article class="project-card"><button type="button" data-action="details" data-id="${escapeHTML(game.id)}" class="project-art" style="--accent:${color}" aria-label="${escapeHTML(game.title)} – Details öffnen"><span class="card-art-symbol">${escapeHTML(iconFor(game))}</span><span class="status-pill">${escapeHTML(game.status)}</span><span class="art-corner">NOVALAB / ${game.type === 'game' ? 'GAMES' : 'STUDIOS'}</span></button><div class="project-card-body"><div class="project-kind">${game.type === 'game' ? 'GAME / NOVALAB' : 'CREATIVE / NOVALAB'}</div><button class="card-title-button" data-action="details" data-id="${escapeHTML(game.id)}" type="button"><h3>${escapeHTML(game.title)}</h3></button><p>${escapeHTML(subtitle)}</p><div class="card-footer"><div class="tag-list">${tags}</div><div class="card-card-actions">${options.uninstall ? `<button class="card-more" data-action="uninstall" data-id="${escapeHTML(game.id)}" title="Deinstallieren" aria-label="${escapeHTML(game.title)} deinstallieren">✕</button>` : ''}${cardAction(game)}</div></div></div></article>`;
 }
+function libraryItems() {
+  return Object.entries(state.installed || {}).map(([id, install]) => {
+    const current=state.games.find(g=>g.id===id);
+    return current || { id, title: id.replace(/-/g,' ').replace(/\b\w/g,m=>m.toUpperCase()), subtitle:'Nicht mehr im Store – lokal installiert', description:'Dieses Spiel ist weiterhin auf deinem PC vorhanden.', type:'game', status:'Lokal installiert', tags:[], accent:'#7182ae', release:null };
+  });
+}
+function renderQuickLibrary() {
+  const found = libraryItems();
+  $('sidebarGameCount').textContent = String(found.length);
+  $('quickLibrary').innerHTML = found.length ? found.slice(0,15).map(g => `<button type="button" class="quick-game" data-action="details" data-id="${escapeHTML(g.id)}"><span class="quick-dot"></span><span>${escapeHTML(g.title)}</span><small>${isNewerVersion(g.release?.version,state.installed[g.id]?.version) ? '↻' : '▶'}</small></button>`).join('') : '<span class="quick-empty">Installierte Spiele erscheinen hier.</span>';
+}
+function openDetails(id) {
+  const game = state.games.find(g=>g.id===id) || libraryItems().find(g=>g.id===id);
+  if (!game) return toast('Spiel nicht gefunden.',true);
+  detailId = id;
+  const installed = state.installed[id];
+  const accent = /^#[0-9a-f]{6}$/i.test(game.accent||'') ? game.accent : '#8771ed';
+  const tags = (game.tags || []).map(t=>`<span class="tag">${escapeHTML(t)}</span>`).join('');
+  const version = game.release?.version || (installed?.version || 'Noch kein Release');
+  $('detailsContent').innerHTML = `<div class="details-hero" style="--accent:${accent}"><div class="details-art-symbol">${escapeHTML(iconFor(game))}</div><div class="details-hero-shade"><span class="eyebrow">NOVALAB STUDIOS / ${escapeHTML(game.type.toUpperCase())}</span><h2>${escapeHTML(game.title)}</h2><div class="details-tags">${tags}</div></div></div><div class="details-body"><div class="details-info"><span class="eyebrow">DAS SPIEL</span><p>${escapeHTML(game.description || game.subtitle || 'Ein Projekt von NovaLab Studios.')}</p><div class="details-meta"><span>STATUS <strong>${escapeHTML(game.status)}</strong></span><span>VERSION <strong>${escapeHTML(version)}</strong></span><span>PLATTFORM <strong>${game.release?.format === 'html' ? 'HTML5 / Windows' : 'Windows / Web'}</strong></span></div></div><div class="details-side"><h3>Deine Bibliothek</h3><p>${installed ? 'Dieses Spiel ist lokal installiert.' : game.release ? 'Kostenlos und auf Wunsch installierbar.' : 'Eine Veröffentlichung ist in Planung.'}</p>${cardAction(game)}${installed ? `<button class="secondary-button" data-action="uninstall" data-id="${escapeHTML(id)}" type="button">Deinstallieren</button>` : ''}<button class="secondary-button" data-action="close-details" type="button">Schließen</button></div></div>`;
+  $('detailsOverlay').classList.remove('hidden');
+}
+function closeDetails() { detailId=null; $('detailsOverlay').classList.add('hidden'); }
 function renderHome() {
-  $('featuredGrid').innerHTML = state.games.slice(0, 3).map(g => gameCard(g)).join('') || '<div class="empty">Noch keine Projekte vorhanden.</div>';
+  $('featuredGrid').innerHTML = [...state.games].sort((a,b)=>Number(!!b.release)-Number(!!a.release)).slice(0, 3).map(g => gameCard(g)).join('') || '<div class="empty">Noch keine Projekte vorhanden.</div>';
   $('libraryCount').textContent = Object.keys(state.installed).length;
+  $('homeLibraryMessage').textContent = Object.keys(state.installed).length ? `${Object.keys(state.installed).length} installierte Spiele · Deine Sammlung ist bereit.` : 'Dein nächstes Lieblingsspiel wartet schon im Store.';
+  renderQuickLibrary();
 }
 function renderDiscover() {
   const found = state.games.filter(g => (filter === 'all' || g.type === filter || (filter === 'mini' && g.release?.format === 'html')) && [g.title, g.subtitle, g.description, ...(g.tags || [])].join(' ').toLocaleLowerCase('de').includes(search.toLocaleLowerCase('de')));
@@ -70,7 +106,8 @@ function renderDiscover() {
   $('noResults').classList.toggle('hidden', found.length > 0);
 }
 function renderLibrary() {
-  const found = state.games.filter(g => state.installed[g.id]);
+  const found = libraryItems();
+  $('librarySummary').textContent = `${found.length} installiert${found.length === 1 ? 'es Spiel' : 'e Spiele'}`;
   $('libraryGrid').innerHTML = found.map(g => gameCard(g, { uninstall: true })).join('');
   $('emptyLibrary').classList.toggle('hidden', found.length > 0);
 }
@@ -86,14 +123,35 @@ function renderDownload() {
     $('downloadPhase').textContent = phaseLabel(data.phase) + (data.total ? ' · ' + (data.bytes / 1048576).toFixed(1) + ' / ' + (data.total / 1048576).toFixed(1) + ' MB' : '');
   }
 }
-function renderSettings() {
-  $('appVersion').textContent = 'v' + state.version;
-  $('bottomVersion').textContent = 'v' + state.version;
-  $('autoUpdateCheck').checked = !!state.settings.checkUpdatesAutomatically;
-  $('updateDescription').textContent = state.update.message || (state.packaged ? 'Noch nicht geprüft.' : 'Entwicklungsmodus: Updateprüfung im Installer verfügbar.');
-  $('downloadUpdateBtn').classList.toggle('hidden', state.update.status !== 'available');
-  $('restartUpdateBtn').classList.toggle('hidden', state.update.status !== 'downloaded');
+function renderUpdateWidgets() {
+  const update=state.update||{};
+  const busy=['checking','downloading','installing'].includes(update.status);
+  const available=update.status==='available', ready=update.status==='downloaded';
+  const progress=update.status==='downloading';
+  const statusName={idle:'BEREIT',checking:'SUCHE',available:'UPDATE VERFÜGBAR',downloading:'DOWNLOAD',downloaded:'BEREIT ZUM INSTALLIEREN',installing:'INSTALLATION',current:'AKTUELL',error:'FEHLER',development:'DEV',unsupported:'NICHT VERFÜGBAR'};
+  $('appVersion').textContent='v'+(state.version||'0.4.0');
+  $('bottomVersion').textContent='v'+(state.version||'0.4.0');
+  $('autoUpdateCheck').checked=!!state.settings?.checkUpdatesAutomatically;
+  $('updateDescription').textContent=update.message||'Noch nicht geprüft.';
+  $('downloadsUpdateStatus').textContent=update.message||'Noch nicht geprüft.';
+  $('updateChecked').textContent=update.checkedAt ? 'Zuletzt geprüft: '+new Intl.DateTimeFormat('de-DE',{dateStyle:'short',timeStyle:'short'}).format(new Date(update.checkedAt)) : 'Noch keine Prüfung durchgeführt.';
+  $('updateStateBadge').textContent=statusName[update.status]||'BEREIT';
+  $('updateStateBadge').className='update-badge '+(update.status||'idle');
+  $('downloadUpdateBtn').classList.toggle('hidden',!available);
+  $('downloadPanelUpdateBtn').classList.toggle('hidden',!available);
+  $('restartUpdateBtn').classList.toggle('hidden',!ready);
+  $('downloadPanelRestartBtn').classList.toggle('hidden',!ready);
+  $('updateProgressBox').classList.toggle('hidden',!progress);
+  $('launcherDownloadProgress').classList.toggle('hidden',!progress);
+  const pct=Math.min(100,Math.max(0,Number(update.progress)||0));
+  $('updateProgressBar').style.width=pct+'%';
+  $('launcherDownloadBar').style.width=pct+'%';
+  document.querySelectorAll('[data-action="check-update"]').forEach(btn=>{ btn.disabled=busy||ready; btn.textContent=update.status==='checking'?'Prüfung läuft …':'Jetzt nach Updates suchen ↻'; });
+  $('topUpdateButton').classList.toggle('hidden',!available&&!ready&&!progress);
+  $('topUpdateLabel').textContent=ready?'INSTALLIEREN':progress?`${pct}%`:'UPDATE';
+  $('bottomStatus').textContent=progress?`Launcher-Update: ${pct}%`:ready?'Neuer Launcher bereit – Neustart erforderlich':download?.phase && download.phase!=='error'?phaseLabel(download.phase):'Bereit für neue Abenteuer';
 }
+function renderSettings() { renderUpdateWidgets(); }
 function renderAccount() {
   const a = state.account;
   $('accountLoggedOut').classList.toggle('hidden', !!a);
@@ -101,6 +159,8 @@ function renderAccount() {
   $('adminNav').classList.toggle('hidden', !(a && a.role === 'admin' && !a.mustChangePassword));
   $('sidebarUsername').textContent = a?.username || 'Gast';
   $('sidebarAvatar').textContent = (a?.username || 'NL').slice(0, 2).toUpperCase();
+  $('topUsername').textContent = a?.username || 'GAST';
+  $('topAvatar').textContent = (a?.username || 'NL').slice(0,2).toUpperCase();
   $('sidebarRole').textContent = a ? a.role === 'admin' ? 'Administrator' : 'Community-Mitglied' : 'Anmelden oder registrieren';
   if (a) {
     $('profileUsername').textContent = a.username;
@@ -117,23 +177,29 @@ async function loadAdminGames() {
 }
 function renderAll() {
   renderHome(); renderDiscover(); renderLibrary(); renderDownload(); renderSettings(); renderAccount();
+  renderQuickLibrary();
   const online = state.source === 'online';
   $('connectionDot').classList.toggle('online', online);
   $('connectionText').textContent = online ? 'Online verbunden' : 'Lokaler Projektkatalog';
 }
-async function act(action, id) {
+async function act(action, id, element) {
+  if (action === 'details') return openDetails(id);
+  if (action === 'close-details') return closeDetails();
+  if (action === 'open-releases') return invoke('open-link', RELEASE_URL);
   const game = state.games.find(g => g.id === id);
-  if (['install', 'launch', 'uninstall', 'visit'].includes(action) && !game) return toast('Projekt nicht gefunden.', true);
+  if (['install', 'launch', 'uninstall', 'visit'].includes(action) && !game && !state.installed[id]) return toast('Projekt nicht gefunden.', true);
   if (action === 'visit') return invoke('open-link', game.website);
   if (action === 'install') {
+    closeDetails();
     selectPage('downloads');
     const result = await invoke('install', id);
     if (result) { toast(game.title + ' wurde installiert.'); state.installed = (await api.invoke('get-state')).installed; renderAll(); }
   }
   if (action === 'launch') await invoke('launch', id);
   if (action === 'uninstall') {
+    closeDetails();
     confirmId = id;
-    $('confirmText').textContent = 'Alle lokal installierten Dateien von „' + game.title + '“ werden gelöscht. Deine anderen Spiele bleiben erhalten.';
+    $('confirmText').textContent = 'Alle lokal installierten Dateien von „' + (game?.title || id) + '“ werden gelöscht. Deine anderen Spiele bleiben erhalten.';
     $('confirmOverlay').classList.remove('hidden');
   }
   if (action === 'open-academy') return invoke('open-academy');
@@ -142,7 +208,7 @@ async function act(action, id) {
   if (action === 'logout-account') { const x = await invoke('logout-account'); if (x) { state.account = null; selectPage('account'); renderAll(); toast('Du bist abgemeldet.'); } }
   if (action === 'choose-game-file') { const f = await invoke('choose-game-file'); if (f && !f.canceled) $('uploadFileName').textContent = f.name + ' · ' + (f.size / 1024).toFixed(0) + ' KB'; }
   if (action === 'load-admin-games') await loadAdminGames();
-  if (action === 'game-visibility') { const btn = document.querySelector('[data-action=game-visibility][data-id= + CSS.escape(id) + ]'); const x = await invoke('game-visibility', { id, published: btn?.dataset.published !== 'true' }); if (x) { await invoke('refresh-catalog'); await loadAdminGames(); toast('Sichtbarkeit aktualisiert.'); } }
+  if (action === 'game-visibility') { const btn = element; const x = await invoke('game-visibility', { id, published: btn?.dataset.published !== 'true' }); if (x) { await invoke('refresh-catalog'); await loadAdminGames(); toast('Sichtbarkeit aktualisiert.'); } }
   if (action === 'refresh') { const data = await invoke('refresh-catalog'); if (data) { state.games = data.games; state.source = data.source; renderAll(); toast('Projektkatalog wurde aktualisiert.'); } }
   if (action === 'check-update') await invoke('check-update');
   if (action === 'download-update') await invoke('download-update');
@@ -163,7 +229,7 @@ function handleEvent(event) {
   if (event.type === 'installed') { state.installed = event.installed; renderAll(); }
   if (event.type === 'updater') {
     state.update = event.update;
-    renderSettings();
+    renderUpdateWidgets();
     if (state.update.status === 'available' || state.update.status === 'downloaded') toast(state.update.message);
   }
   if (event.type === 'download') {
@@ -173,7 +239,7 @@ function handleEvent(event) {
     $('bottomStatus').textContent = phaseLabel(event.phase);
   }
   if (event.type === 'download-idle') {
-    download = null; renderDownload(); $('bottomStatus').textContent = 'Bereit für neue Abenteuer';
+    download = null; renderDownload(); renderUpdateWidgets();
   }
   if (event.type === 'error') toast(event.message, true);
 }
@@ -186,7 +252,7 @@ document.addEventListener('click', async ev => {
   const filterButton = ev.target.closest('[data-filter]');
   if (filterButton) { filter = filterButton.dataset.filter; document.querySelectorAll('[data-filter]').forEach(btn => btn.classList.toggle('selected', btn === filterButton)); return renderDiscover(); }
   const actionButton = ev.target.closest('[data-action]');
-  if (actionButton) return act(actionButton.dataset.action, actionButton.dataset.id);
+  if (actionButton) return act(actionButton.dataset.action, actionButton.dataset.id, actionButton);
 });
 $('loginForm').addEventListener('submit', async ev => {
   ev.preventDefault();
@@ -229,7 +295,8 @@ $('autoUpdateCheck').addEventListener('change', async ev => {
 $('confirmUninstall').addEventListener('click', confirmUninstall);
 $('cancelUninstall').addEventListener('click', () => { confirmId = null; $('confirmOverlay').classList.add('hidden'); });
 $('confirmOverlay').addEventListener('click', ev => { if (ev.target.id === 'confirmOverlay') { confirmId = null; $('confirmOverlay').classList.add('hidden'); } });
-document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { confirmId = null; $('confirmOverlay').classList.add('hidden'); } });
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { closeDetails(); confirmId = null; $('confirmOverlay').classList.add('hidden'); } });
+$('detailsOverlay').addEventListener('click',ev => { if (ev.target === $('detailsOverlay')) closeDetails(); });
 $('todayDate').textContent = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
 api.onEvent(handleEvent);
 (async () => {

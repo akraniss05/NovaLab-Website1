@@ -122,3 +122,17 @@ git push origin v0.1.1
 - `download.html` — öffentliche Landingpage mit GitHub Release-Check
 
 Der Quellcode liegt bewusst **separat neben der bisherigen NovaLab-Website**. Admin-Backend und vorhandene Website-Dateien werden nicht ersetzt.
+
+## v0.4.0 – Desktop Gaming Client (10.11.2026)
+
+Das neue Interface nutzt Steam-inspirierte **Navigationsprinzipien**, aber bewusst eigene NovaLab-Farben, Symbole und Grafiken. Die bestehende Academy-Anbindung, Anmeldung, freie Registrierung, Admin-Spieluploads und lokale Spiele sind unverändert verfügbar.
+
+- Obere Store-/Bibliotheksnavigation, Schnellzugriff auf installierte Spiele in der Seitenleiste, neue Karten und Spieldetailfenster.
+- Bibliothek zeigt auch bereits installierte Spiele an, die später im öffentlichen Katalog ausgeblendet werden.
+- Neuer Update-Controller mit Einzelprüfung statt doppelter gleichzeitiger Downloads, sauberem Fehler-/Retry-Status und Fortschrittsanzeige im Download-Center und in den Einstellungen.
+- **Kein automatisches Installieren beim gewöhnlichen Beenden:** Benutzer startet Installation ausdrücklich mit dem Neustart-Knopf. So vermeiden wir unerwartete Installationen beim Abmelden/Herunterfahren.
+- Fallback: offizieller GitHub-Release-Download in den Einstellungen, falls die Update-Schnittstelle nicht erreichbar ist.
+- Admin-Studio: Fehler bei der Sichtbarkeitsschaltung behoben.
+- Neue Unit-Tests: `npm run check` prüft Syntax sowie Updatezustände inklusive paralleler Checks, Netzwerkausfällen und Download.
+
+**Update-Hinweise:** Der Download- und Installationsprozess wird über `electron-updater`/NSIS mit `latest.yml` aus GitHub Releases gesteuert. Der Installer muss weiterhin unsigniert von Windows-Nutzern explizit bestätigt werden; es gibt noch kein verifiziertes Code-Signing-Zertifikat. Laufende Apps werden nicht ohne Bestätigung automatisch geschlossen. Bei Schwierigkeiten kann der aktuelle Installer direkt von der GitHub-Release-Seite heruntergeladen und über die vorhandene Version installiert werden.
