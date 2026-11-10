@@ -13,8 +13,8 @@ async function waitFor(fn, timeout = 8000) {
   const start = Date.now();
   while (!fn()) { if (Date.now() - start > timeout) throw new Error('Timeout'); await delay(30); }
 }
-async function fixture(t, { acceptsRange = true, chunkDelay = 0 } = {}) {
-  const content = Buffer.from('NOVALAB'.repeat(70000));
+async function fixture(t, { acceptsRange = true, chunkDelay = 0, repeat = 70000 } = {}) {
+  const content = Buffer.from('NOVALAB'.repeat(repeat));
   const sha256 = createHash('sha256').update(content).digest('hex');
   const dir = await mkdtemp(path.join(os.tmpdir(), 'novalab-dlm-'));
   t.after(async () => rm(dir, { recursive: true, force: true }));
@@ -109,9 +109,10 @@ test('cancel deletes partial bytes and removes task', async t=>{
 });
 
 test('graceful launcher shutdown keeps partial download queued, not failed',async t=>{
-  const f=await fixture(t,{chunkDelay:7});
+  // Large slow fixture prevents a race where the whole archive already completed.
+  const f=await fixture(t,{chunkDelay:3,repeat:900000});
   const dl=manager(f,async()=>{});await dl.init();await dl.enqueue(game(f));
-  await waitFor(()=>dl.list()[0].bytes>30000);
+  await waitFor(()=>dl.list()[0].bytes>30000 && dl.list()[0].phase==='downloading');
   await dl.close();
   assert.equal(dl.list()[0].phase,'queued');
   const reboot=manager(f,async()=>{});t.after(()=>reboot.close());
