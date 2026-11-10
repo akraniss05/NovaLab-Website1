@@ -1,0 +1,5 @@
+[
+  {"id":"novalab-code","title":"NovaLab Code","description":"Die moderne Coding Lernplattform mit interaktiven Kursen.","category":"coding","status":"In Entwicklung","url":"https://akraniss05.github.io/liverylab-academy/","icon":"code"},
+  {"id":"novalab-games","title":"NovaLab Games","description":"Unsere eigene Spieleplattform inklusive Launcher.","category":"games","status":"Geplant","url":"#games","icon":"game"},
+  {"id":"novalab-projects","title":"Weitere Projekte","description":"Tools, Lernplattformen, Web-Apps und mehr.","category":"tools","status":"In Entwicklung","url":"#projects","icon":"grid"}
+]
