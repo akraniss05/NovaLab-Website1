@@ -1,5 +1,24 @@
 # NovaLab Games Launcher · Windows Desktop App
 
+## ✦ NEU: Kleine Spiele direkt aus ChatGPT veröffentlichen (v0.2.0)
+
+Der Launcher unterstützt jetzt neben Windows-EXE-Spielen auch **kleine HTML/CSS/JavaScript-Browsergames**, wie wir sie hier im Chat entwickeln. Das Spiel wird erst beim Klick auf **„Mini-Spiel laden“** heruntergeladen. Nach der Installation funktioniert es **offline**, öffnet ein eigenes Spielefenster und speichert seinen Highscore lokal. Andere Benutzer sehen den Eintrag automatisch im Online-Katalog, ohne dass sie ein Update des Launchers benötigen.
+
+### So kommt ein neues Spiel rein
+
+1. Lege `launcher/mini-games/mein-spiel/` an. In den Ordner gehören `index.html` und bei Bedarf weitere relative Assets wie `style.css`, `game.js` oder Bilder. Keine externen CDNs benutzen (Spiele haben aus Sicherheitsgründen keinen Internetzugriff).
+2. Kopiere `launcher/mini-games/orbit-dash/game.json` in den neuen Ordner und passe die Felder an. `id` muss dem Ordnernamen entsprechen; `entry` ist die HTML-Startdatei.
+3. Lade die Spieldateien nach GitHub in den `main`-Branch hoch.
+4. Öffne **Actions → NovaLab Mini-Game veröffentlichen → Run workflow**. Trage `game_id` wie `mein-spiel` und `version` wie `1.0.0` ein. Die Action packt den Ordner als ZIP, berechnet SHA-256 und trägt die neue Version in `launcher/catalog.json` ein.
+5. Launcher öffnen → **Entdecken → Mini-Games** → **Katalog neu laden**. Spieler können das Spiel bei Interesse freiwillig installieren.
+
+Ein Spielupdate geht genauso: Quelldateien ändern, Workflow mit einer **höheren** Versionsnummer (`1.0.1`) starten, und im Launcher erscheint **Update**. Alte Versionen bleiben als ZIP im Repository, das neue Release ist im Katalog aktiv. Der Launcher selbst braucht dafür kein neues EXE-Release.
+
+**Sicherheit & Einschränkungen:** HTML-Spiele laufen separat in einem isolierten Electron-Fenster ohne Node.js, ohne Launcher-IPC und ohne externe Netzwerkzugriffe. Die ZIP wird vor dem Entpacken per SHA-256 geprüft. Nur freigegebene Dateitypen werden angenommen, außerdem gelten Größen- und Dateianzahl-Limits. Veröffentliche nur Spiele/Assets, für die ihr Nutzungsrechte habt. Die Spiele laufen aktuell in der Windows-Version des Launchers; später wäre ein macOS/Linux-Port möglich. Veröffentlichte ZIP-Dateien liegen im GitHub-Repository – sinnvoll für kleine Spiele, nicht für riesige Assets.
+
+**Erstes Testspiel:** `Orbit Dash` in `launcher/mini-games/orbit-dash/`. Sofort auch im Browser testbar: https://akraniss05.github.io/NovaLab-Website1/launcher/mini-games/orbit-dash/index.html
+
+
 Der **NovaLab Games Launcher** ist eine eigenständige, installierbare Electron-App (nicht bloß ein Website-Shortcut). Das Interface umfasst Startseite, Projektkatalog, Spielebibliothek, Downloads, Einstellungen und NovaLab-Links. Aktuell ist der Launcher ein **MVP für Windows x64**; macOS/Linux-Installer, Accounts, Multiplayer und Cloud-Saves sind noch nicht implementiert.
 
 ## Funktionen
@@ -12,7 +31,7 @@ Der **NovaLab Games Launcher** ist eine eigenständige, installierbare Electron-
 - Launcher-Auto-Update über **GitHub Releases** (`electron-updater`) inklusive Update-Download und Neustart-Button.
 - Sicherheitsgrenzen: Context Isolation, Sandboxing, keine Node APIs im Renderer, strikt begrenzte IPC-Schnittstelle, HTTPS-Link-Whitelist.
 
-**Ehrlicher Projektstatus:** Noch ist kein spielbares NovaLab-Spiel veröffentlicht. Die Game-Karte zeigt deshalb **keinen fiktiven Installieren-Button**. Installationen werden verfügbar, sobald ein gültiges Spiel-Release samt SHA-256 eingetragen wird.
+**Projektstatus:** Orbit Dash ist als erstes kostenloses Mini-Game im Katalog vorhanden. Größere Desktop-Spiele sind noch in Entwicklung. Die anderen Game-Karten zeigen weiterhin **keinen fiktiven Installieren-Button**.
 
 ## Lokal starten (Windows)
 

@@ -1,8 +1,8 @@
 {
   "name": "novalab-launcher",
   "productName": "NovaLab Launcher",
-  "version": "0.1.0",
-  "description": "Der offizielle Desktop-Launcher für NovaLab Studios",
+  "version": "0.2.0",
+  "description": "NovaLab Mini Games Launcher: optionale Windows-Downloads für HTML5- und Desktop-Spiele",
   "main": "src/main.cjs",
   "private": true,
   "author": "NovaLab Studios",
@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "electron-updater": "6.8.12",
-    "extract-zip": "2.0.1"
+    "extract-zip": "2.0.1",
+    "yauzl": "2.10.0"
   },
   "devDependencies": {
     "electron": "45.2.3",
@@ -24,11 +25,24 @@
   "build": {
     "appId": "com.novalabstudios.launcher",
     "productName": "NovaLab Launcher",
-    "directories": { "output": "dist" },
-    "files": ["src/**/*", "catalog.json", "package.json"],
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "catalog.json",
+      "package.json"
+    ],
     "asar": true,
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "artifactName": "NovaLab-Launcher-Setup-${version}.${ext}"
     },
     "nsis": {

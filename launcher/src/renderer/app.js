@@ -38,6 +38,7 @@ function selectPage(name) {
 function iconFor(game) {
   if (game.id.includes('beat')) return '♫';
   if (game.id.includes('academy')) return '</>';
+  if (game.release?.format === 'html') return '✧';
   return game.type === 'tool' ? '✧' : '✦';
 }
 function cardAction(game) {
@@ -46,7 +47,7 @@ function cardAction(game) {
     if (game.release && entry.version !== game.release.version) return `<button class="card-button update" data-action="install" data-id="${escapeHTML(game.id)}">Update ↓</button>`;
     return `<button class="card-button installed" data-action="launch" data-id="${escapeHTML(game.id)}">▶ Spielen</button>`;
   }
-  if (game.release && state.platform === 'win32') return `<button class="card-button" data-action="install" data-id="${escapeHTML(game.id)}">Installieren ↓</button>`;
+  if (game.release && state.platform === 'win32') return `<button class="card-button" data-action="install" data-id="${escapeHTML(game.id)}">${game.release.format === 'html' ? 'Mini-Spiel laden' : 'Installieren'} ↓</button>`;
   if (game.website) return `<button class="card-button" data-action="visit" data-id="${escapeHTML(game.id)}">Entdecken ↗</button>`;
   return '<button class="card-button" type="button" disabled>Demnächst</button>';
 }
@@ -61,7 +62,7 @@ function renderHome() {
   $('libraryCount').textContent = Object.keys(state.installed).length;
 }
 function renderDiscover() {
-  const found = state.games.filter(g => (filter === 'all' || g.type === filter) && [g.title, g.subtitle, g.description, ...(g.tags || [])].join(' ').toLocaleLowerCase('de').includes(search.toLocaleLowerCase('de')));
+  const found = state.games.filter(g => (filter === 'all' || g.type === filter || (filter === 'mini' && g.release?.format === 'html')) && [g.title, g.subtitle, g.description, ...(g.tags || [])].join(' ').toLocaleLowerCase('de').includes(search.toLocaleLowerCase('de')));
   $('discoverGrid').innerHTML = found.map(g => gameCard(g)).join('');
   $('noResults').classList.toggle('hidden', found.length > 0);
 }

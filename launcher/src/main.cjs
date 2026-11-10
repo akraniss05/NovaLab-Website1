@@ -1,10 +1,11 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, shell, nativeTheme } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, nativeTheme, session, protocol } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
+const yauzl = require('yauzl');
 const crypto = require('node:crypto');
 const { Readable, Transform } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
@@ -15,6 +16,11 @@ const WEBSITE = 'https://akraniss05.github.io/NovaLab-Website1/';
 const DISCORD = 'https://discord.gg/SZhYa6Nnmy';
 const REMOTE_CATALOG = 'https://raw.githubusercontent.com/akraniss05/NovaLab-Website1/main/launcher/catalog.json';
 const MAX_ARCHIVE_BYTES = 5 * 1024 * 1024 * 1024;
+const MAX_MINI_ARCHIVE_BYTES = 120 * 1024 * 1024;
+const MAX_MINI_UNPACKED_BYTES = 300 * 1024 * 1024;
+const GAME_PARTITION = 'persist:novalab-mini-games';
+const MINI_EXTENSIONS = new Set(['.html','.htm','.css','.js','.mjs','.json','.txt','.svg','.png','.jpg','.jpeg','.gif','.webp','.ico','.woff','.woff2','.ttf','.mp3','.ogg','.wav','.mp4','.webm','.wasm','.glb','.gltf']);
+protocol.registerSchemesAsPrivileged([{ scheme: 'novalab-game', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
 const ALLOWED_GAME_ID = /^[a-z0-9][a-z0-9-]{1,59}$/;
 const APP_ID = 'com.novalabstudios.launcher';
 const gameRoot = () => path.join(app.getPath('userData'), 'installed-games');
@@ -27,6 +33,7 @@ let catalog = [];
 let catalogSource = 'local';
 let activeDownload = null;
 let updaterState = { status: 'idle', message: '', progress: 0 };
+let gameProtocolReady = false;
 
 function readJson(filename, fallback) {
   try { return JSON.parse(fs.readFileSync(filename, 'utf8')); } catch { return fallback; }
@@ -44,10 +51,16 @@ function isValidRelease(release) {
   if (!release || typeof release !== 'object') return false;
   if (typeof release.version !== 'string' || !/^[0-9]+\.[0-9]+\.[0-9]+(?:[-.][a-zA-Z0-9.-]+)?$/.test(release.version)) return false;
   if (typeof release.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(release.sha256)) return false;
-  if (typeof release.entry !== 'string' || !/^[a-zA-Z0-9_ .()/-]+\.exe$/i.test(release.entry) || release.entry.startsWith('/') || release.entry.split('/').includes('..')) return false;
+  const format = release.format || 'windows';
+  if (!['windows','html'].includes(format)) return false;
+  if (typeof release.entry !== 'string' || !/^[a-zA-Z0-9_ .()/-]+$/i.test(release.entry) || release.entry.startsWith('/') || release.entry.split('/').includes('..') || !release.entry.includes('.')) return false;
+  if (format === 'windows' && !/\.exe$/i.test(release.entry)) return false;
+  if (format === 'html' && !/\.html?$/i.test(release.entry)) return false;
   try {
     const url = new URL(release.url);
-    return url.protocol === 'https:' && url.hostname === 'github.com' && /^\/akraniss05\/[a-zA-Z0-9_.-]+\/releases\/download\/[^/]+\/[^/]+\.zip$/i.test(decodeURI(url.pathname)) && !url.username && !url.password && !url.search && !url.hash;
+    const legacyRelease = url.hostname === 'github.com' && /^\/akraniss05\/[a-zA-Z0-9_.-]+\/releases\/download\/[^/]+\/[^/]+\.zip$/i.test(url.pathname);
+    const miniDownload = url.hostname === 'raw.githubusercontent.com' && /^\/akraniss05\/NovaLab-Website1\/main\/launcher\/mini-games\/downloads\/[a-z0-9-]+\/[a-z0-9.-]+\.zip$/i.test(url.pathname);
+    return url.protocol === 'https:' && (legacyRelease || (format === 'html' && miniDownload)) && !url.username && !url.password && !url.search && !url.hash;
   } catch { return false; }
 }
 function normalizeCatalog(raw) {
@@ -70,7 +83,8 @@ function normalizeCatalog(raw) {
       version: item.release.version,
       url: item.release.url,
       sha256: item.release.sha256.toLowerCase(),
-      entry: item.release.entry
+      entry: item.release.entry,
+      format: item.release.format === 'html' ? 'html' : 'windows'
     } : null
   }));
 }
@@ -112,7 +126,7 @@ function safeEntry(base, entry) {
   if (!target.startsWith(path.resolve(base) + path.sep)) throw new Error('Ungültiger Spielpfad');
   return target;
 }
-async function downloadArchive(url, dest, expectedHash, id) {
+async function downloadArchive(url, dest, expectedHash, id, maxBytes = MAX_ARCHIVE_BYTES) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30 * 60 * 1000);
   let total = 0;
@@ -122,11 +136,11 @@ async function downloadArchive(url, dest, expectedHash, id) {
     const response = await fetch(url, { redirect: 'follow', signal: controller.signal, headers: { 'User-Agent': 'NovaLab-Launcher' } });
     if (!response.ok || !response.body) throw new Error('Download fehlgeschlagen (HTTP ' + response.status + ')');
     const contentTypeLength = Number(response.headers.get('content-length')) || 0;
-    if (contentTypeLength > MAX_ARCHIVE_BYTES) throw new Error('Datei überschreitet die Größenbegrenzung');
+    if (contentTypeLength > maxBytes) throw new Error('Datei überschreitet die Größenbegrenzung');
     const progress = new Transform({
       transform(chunk, enc, cb) {
         total += chunk.length;
-        if (total > MAX_ARCHIVE_BYTES) return cb(new Error('Download ist zu groß'));
+        if (total > maxBytes) return cb(new Error('Download ist zu groß'));
         hash.update(chunk);
         if (Date.now() - lastProgress > 160 || total === contentTypeLength) {
           notify('download', { id, phase: 'downloading', bytes: total, total: contentTypeLength, percent: contentTypeLength ? Math.min(100, Math.round(total * 100 / contentTypeLength)) : 0 });
@@ -139,10 +153,70 @@ async function downloadArchive(url, dest, expectedHash, id) {
     if (hash.digest('hex') !== expectedHash) throw new Error('SHA-256-Prüfsumme stimmt nicht. Installation abgebrochen.');
   } finally { clearTimeout(timeout); }
 }
+function checkMiniArchive(zipPath) {
+  return new Promise((resolve, reject) => {
+    yauzl.open(zipPath, { lazyEntries: true, decodeStrings: true, validateEntrySizes: true }, (error, zip) => {
+      if (error) return reject(error);
+      let count = 0, uncompressed = 0, done = false;
+      const fail = err => { if (!done) { done = true; zip.close(); reject(err); } };
+      zip.on('error', fail);
+      zip.on('entry', entry => {
+        count++;
+        uncompressed += entry.uncompressedSize;
+        const name = entry.fileName;
+        const parts = name.split('/');
+        const type = (entry.externalFileAttributes >>> 16) & 0o170000;
+        if (count > 500 || uncompressed > MAX_MINI_UNPACKED_BYTES || name.includes('\\') || name.startsWith('/') || parts.some(p => p === '..' || p === '.') || /:/.test(name) || type === 0o120000) return fail(new Error('Ungültige oder zu große Mini-Game-ZIP'));
+        if (!name.endsWith('/') && !MINI_EXTENSIONS.has(path.extname(name).toLowerCase())) return fail(new Error('Nicht erlaubter Dateityp: ' + name));
+        zip.readEntry();
+      });
+      zip.on('end', () => { if (!done) { done = true; resolve(); } });
+      zip.readEntry();
+    });
+  });
+}
+const GAME_CSP = "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
+const CONTENT_TYPES = { '.html':'text/html; charset=utf-8', '.htm':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.mjs':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.json':'application/json', '.wasm':'application/wasm', '.svg':'image/svg+xml', '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp', '.gif':'image/gif', '.ico':'image/x-icon', '.mp3':'audio/mpeg', '.wav':'audio/wav', '.ogg':'audio/ogg', '.mp4':'video/mp4', '.webm':'video/webm', '.woff':'font/woff', '.woff2':'font/woff2', '.ttf':'font/ttf', '.txt':'text/plain; charset=utf-8', '.glb':'model/gltf-binary', '.gltf':'model/gltf+json' };
+function prepareMiniGames() {
+  if (gameProtocolReady) return;
+  gameProtocolReady = true;
+  const part = session.fromPartition(GAME_PARTITION);
+  part.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
+  part.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !details.url.startsWith('novalab-game://') }));
+  part.protocol.handle('novalab-game', async request => {
+    try {
+      const url = new URL(request.url);
+      const id = url.hostname;
+      if (!ALLOWED_GAME_ID.test(id) || !installed[id] || installed[id].format !== 'html') return new Response('Nicht installiert', {status: 404});
+      const subPath = decodeURIComponent(url.pathname).replace(/^\/+/, '');
+      if (!subPath || subPath.includes('\\') || subPath.split('/').some(part => !part || part === '.' || part === '..')) return new Response('Ungültiger Pfad', {status: 403});
+      const base = await fsp.realpath(localGamePath(id));
+      const target = safeEntry(base, subPath);
+      const resolved = await fsp.realpath(target);
+      if (!resolved.startsWith(base + path.sep) || !MINI_EXTENSIONS.has(path.extname(resolved).toLowerCase())) return new Response('Zugriff verweigert', {status: 403});
+      const info = await fsp.stat(resolved);
+      if (!info.isFile() || info.size > 80 * 1024 * 1024) return new Response('Asset zu groß', {status: 413});
+      const content = await fsp.readFile(resolved);
+      return new Response(content, {status: 200, headers: { 'content-type': CONTENT_TYPES[path.extname(resolved).toLowerCase()] || 'application/octet-stream', 'content-security-policy': GAME_CSP, 'x-content-type-options':'nosniff' }});
+    } catch { return new Response('Datei nicht gefunden', {status: 404}); }
+  });
+}
+function openMiniGame(id, entry, title) {
+  prepareMiniGames();
+  const window = new BrowserWindow({
+    title: 'NovaLab Mini Game · ' + title, width: 1100, height: 760, minWidth: 620, minHeight: 480,
+    backgroundColor: '#0a0c19', autoHideMenuBar: true,
+    webPreferences: { partition: GAME_PARTITION, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, devTools: !app.isPackaged }
+  });
+  window.webContents.setWindowOpenHandler(() => ({action:'deny'}));
+  window.webContents.on('will-navigate', (event, url) => { if (!url.startsWith('novalab-game://' + id + '/')) event.preventDefault(); });
+  window.loadURL('novalab-game://' + id + '/' + entry.split('/').map(encodeURIComponent).join('/'));
+}
+
 async function installGame(id) {
   const game = gameById(id);
   if (!game || !game.release) throw new Error('Für dieses Projekt wurde noch kein Download veröffentlicht.');
-  if (process.platform !== 'win32') throw new Error('Der Spiele-Installer unterstützt derzeit Windows.');
+  if (process.platform !== 'win32') throw new Error('Der Launcher unterstützt Spieleinstallationen derzeit unter Windows.');
   if (activeDownload) throw new Error('Ein anderer Download läuft bereits.');
   const release = game.release;
   await fsp.mkdir(gameRoot(), { recursive: true });
@@ -157,7 +231,8 @@ async function installGame(id) {
   let swapped = false;
   const previousRecord = installed[id];
   try {
-    await downloadArchive(release.url, zipPath, release.sha256, id);
+    await downloadArchive(release.url, zipPath, release.sha256, id, release.format === 'html' ? MAX_MINI_ARCHIVE_BYTES : MAX_ARCHIVE_BYTES);
+    if (release.format === 'html') await checkMiniArchive(zipPath);
     notify('download', { id, phase: 'extracting', percent: 100 });
     await fsp.mkdir(unpacked, { recursive: true });
     await extractZip(zipPath, { dir: unpacked });
@@ -165,10 +240,11 @@ async function installGame(id) {
     const realRoot = await fsp.realpath(unpacked);
     const realEntry = await fsp.realpath(entry);
     if (!realEntry.startsWith(realRoot + path.sep) || !(await fsp.stat(realEntry)).isFile()) throw new Error('Ungültige EXE im Spielarchiv');
+    if (release.format === 'html' && path.extname(entry).toLowerCase() !== '.html') throw new Error('Das Mini-Spiel muss eine HTML-Startdatei haben.');
     if (fs.existsSync(finalPath)) { await fsp.rename(finalPath, backupPath); backedUp = true; }
     await fsp.rename(unpacked, finalPath);
     swapped = true;
-    installed[id] = { version: release.version, entry: release.entry, installedAt: new Date().toISOString() };
+    installed[id] = { version: release.version, entry: release.entry, format: release.format, installedAt: new Date().toISOString() };
     await writeJsonAtomic(statePath(), installed);
     notify('installed', { id, installed });
   } catch (error) {
@@ -191,7 +267,13 @@ async function launchGame(id) {
   const target = safeEntry(base, item.entry);
   const actualBase = await fsp.realpath(base);
   const actualTarget = await fsp.realpath(target);
-  if (!actualTarget.startsWith(actualBase + path.sep) || !(await fsp.stat(actualTarget)).isFile() || !/\.exe$/i.test(actualTarget)) throw new Error('Spieldatei ist ungültig.');
+  if (!actualTarget.startsWith(actualBase + path.sep) || !(await fsp.stat(actualTarget)).isFile()) throw new Error('Spieldatei ist ungültig.');
+  if (item.format === 'html') {
+    if (!/\.html?$/i.test(actualTarget)) throw new Error('HTML-Startdatei fehlt.');
+    openMiniGame(id, item.entry, gameById(id)?.title || id);
+    return {ok: true};
+  }
+  if (!/\.exe$/i.test(actualTarget)) throw new Error('Spiel-EXE fehlt.');
   const child = spawn(actualTarget, [], { cwd: path.dirname(actualTarget), detached: true, stdio: 'ignore', windowsHide: false });
   child.once('error', err => notify('error', { message: 'Spielstart fehlgeschlagen: ' + err.message }));
   child.unref();

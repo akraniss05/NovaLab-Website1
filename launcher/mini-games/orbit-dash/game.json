@@ -1,0 +1,13 @@
+{
+  "id": "orbit-dash",
+  "title": "Orbit Dash",
+  "subtitle": "Dodge den Meteorenregen in einem schnellen Weltraum-Arcadegame.",
+  "description": "Ein kleines Arcade-Spiel für Tastatur und Maus: weiche Meteoren aus, sammle Sterne, knacke deinen Highscore. Als kostenloses HTML5-Spiel direkt im NovaLab Launcher installierbar.",
+  "tags": [
+    "Arcade",
+    "Highscore",
+    "Mini Game"
+  ],
+  "accent": "#9676ff",
+  "entry": "index.html"
+}

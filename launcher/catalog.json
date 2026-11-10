@@ -1,12 +1,38 @@
 [
   {
+    "id": "orbit-dash",
+    "title": "Orbit Dash",
+    "subtitle": "Dodge den Meteorenregen in einem schnellen Weltraum-Arcadegame.",
+    "description": "Ein kleines Arcade-Spiel für Tastatur und Maus: weiche Meteoren aus, sammle Sterne, knacke deinen Highscore. Als kostenloses HTML5-Spiel direkt im NovaLab Launcher installierbar.",
+    "type": "game",
+    "status": "Spielbar",
+    "tags": [
+      "Arcade",
+      "Highscore",
+      "Mini Game"
+    ],
+    "accent": "#9676ff",
+    "website": "https://akraniss05.github.io/NovaLab-Website1/launcher/mini-games/orbit-dash/index.html",
+    "release": {
+      "format": "html",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/akraniss05/NovaLab-Website1/main/launcher/mini-games/downloads/orbit-dash/orbit-dash-v1.0.0.zip",
+      "sha256": "d0bdd985d9ed750813ba28313f9257205ab927029360d5af8f9eb4a4d2598ab0",
+      "entry": "index.html"
+    }
+  },
+  {
     "id": "novalab-game-01",
     "title": "NovaLab Game 01",
     "subtitle": "Das erste große Gaming-Projekt von NovaLab Studios",
     "description": "Unsere erste Spielwelt entsteht. Entdecke Konzept, Entwicklung und zukünftige Releases direkt im Launcher. Ein spielbarer Download wurde noch nicht veröffentlicht.",
     "type": "game",
     "status": "In Entwicklung",
-    "tags": ["Gaming", "PC", "Coming soon"],
+    "tags": [
+      "Gaming",
+      "PC",
+      "Coming soon"
+    ],
     "accent": "#9a72ff",
     "website": "https://akraniss05.github.io/NovaLab-Website1/#games"
   },
@@ -17,7 +43,11 @@
     "description": "Die NovaLab Academy verbindet Kurse für Programmiersprachen und Blender mit Aufgaben, Quizzen, XP und individuellen Lernpfaden. Die Web-App öffnet sich im Browser.",
     "type": "app",
     "status": "Beta",
-    "tags": ["Coding", "Blender", "Lernen"],
+    "tags": [
+      "Coding",
+      "Blender",
+      "Lernen"
+    ],
     "accent": "#53c9ff",
     "website": "https://liverylab-academy.dev/"
   },
@@ -28,7 +58,11 @@
     "description": "Hier entsteht eine Lernplattform rund um Beats, Rhythmus und Musikproduktion. Aktuell gibt es noch keine herunterladbare App.",
     "type": "app",
     "status": "In Entwicklung",
-    "tags": ["Musik", "Beats", "Kreativ"],
+    "tags": [
+      "Musik",
+      "Beats",
+      "Kreativ"
+    ],
     "accent": "#ff7aba",
     "website": "https://akraniss05.github.io/NovaLab-Website1/#music"
   }
