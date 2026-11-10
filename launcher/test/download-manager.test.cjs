@@ -17,7 +17,7 @@ async function fixture(t, { acceptsRange = true, chunkDelay = 0, repeat = 70000 
   const content = Buffer.from('NOVALAB'.repeat(repeat));
   const sha256 = createHash('sha256').update(content).digest('hex');
   const dir = await mkdtemp(path.join(os.tmpdir(), 'novalab-dlm-'));
-  t.after(async () => rm(dir, { recursive: true, force: true }));
+  const managers = [];
   const headersSeen = [];
   const server = http.createServer(async (req, res) => {
     headersSeen.push(req.headers.range || null);
@@ -38,14 +38,22 @@ async function fixture(t, { acceptsRange = true, chunkDelay = 0, repeat = 70000 
     res.end();
   });
   await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
-  t.after(async () => server.close());
-  return {dir, content, sha256, headersSeen, url: `http://127.0.0.1:${server.address().port}/game.zip`};
+  // Cleanup runs after the request controllers have been closed.
+  // On Windows removing temp files while downloads.json is being renamed is EPERM.
+  t.after(async ()=>{
+    for(const dl of managers)await dl.close().catch(()=>{});
+    await new Promise(resolve=>server.close(resolve));
+    await rm(dir,{recursive:true,force:true,maxRetries:8,retryDelay:75});
+  });
+  return {dir, content, sha256, headersSeen, managers, url: `http://127.0.0.1:${server.address().port}/game.zip`};
 }
 function game(f, id='orbit-dash', sha256=f.sha256) {
   return { id, title:'Orbit Dash', release: { version:'1.0.0', format:'html', entry:'index.html', sha256, url: f.url.replace('http:', 'https:') } };
 }
 function manager(f, ready, options = {}) {
-  return new DownloadManager({ directory: f.dir, onReady: ready, request: (url, opts) => fetch(f.url, opts), ...options });
+  const instance=new DownloadManager({ directory: f.dir, onReady: ready, request: (url, opts) => fetch(f.url, opts), ...options });
+  f.managers.push(instance);
+  return instance;
 }
 test('parseContentRange checks byte offsets', () => {
   assert.deepEqual(parseContentRange('bytes 500-999/1000'), { from:500, end:999, total:1000 });
