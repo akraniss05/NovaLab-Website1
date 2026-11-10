@@ -3,6 +3,7 @@
 const { app, BrowserWindow, ipcMain, shell, nativeTheme, session, protocol, dialog, safeStorage } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { createUpdateController } = require('./update-controller.cjs');
+const { DownloadManager, hashFile } = require('./download-manager.cjs');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
@@ -26,12 +27,16 @@ const MINI_EXTENSIONS = new Set(['.html','.htm','.css','.js','.mjs','.json','.tx
 protocol.registerSchemesAsPrivileged([{ scheme: 'novalab-game', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
 const ALLOWED_GAME_ID = /^[a-z0-9][a-z0-9-]{1,59}$/;
 const APP_ID = 'com.novalabstudios.launcher';
-const gameRoot = () => path.join(app.getPath('userData'), 'installed-games');
+const gameRoot = () => path.resolve(settings.installRoot || path.join(app.getPath('userData'), 'installed-games'));
 const statePath = () => path.join(app.getPath('userData'), 'games.json');
 const settingsPath = () => path.join(app.getPath('userData'), 'settings.json');
+const statsPath = () => path.join(app.getPath('userData'), 'game-stats.json');
 let win;
 let installed = {};
-let settings = { checkUpdatesAutomatically: true };
+let settings = { checkUpdatesAutomatically: true, installRoot: '' };
+let gameStats = {};
+let downloads = null;
+const runningGames = new Map();
 let catalog = [];
 let catalogSource = 'local';
 let activeDownload = null;
@@ -237,9 +242,13 @@ async function loadCatalog() {
   return { games: catalog, source: catalogSource };
 }
 function snapshot() {
-  return { games: catalog, installed, source: catalogSource, settings, update: updaterState, version: app.getVersion(), packaged: app.isPackaged, platform: process.platform, activeDownload, account };
+  return { games: catalog, installed, stats: gameStats, downloads: downloads?.list() || [], source: catalogSource, settings, update: updaterState, version: app.getVersion(), packaged: app.isPackaged, platform: process.platform, activeDownload: downloads?.active, account };
 }
-function localGamePath(id) { return path.join(gameRoot(), id); }
+function localGamePath(id) {
+  if (!ALLOWED_GAME_ID.test(id || '')) throw new Error('Ungültige Spiele-ID.');
+  const root = installed[id] ? (installed[id].installRoot || path.join(app.getPath('userData'), 'installed-games')) : gameRoot();
+  return path.join(path.resolve(root), id);
+}
 function gameById(id) { return catalog.find(g => g.id === id); }
 function verifySender(event) {
   if (!win || event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame || !event.senderFrame.url.startsWith('file://')) {
@@ -251,7 +260,7 @@ function safeEntry(base, entry) {
   if (!target.startsWith(path.resolve(base) + path.sep)) throw new Error('Ungültiger Spielpfad');
   return target;
 }
-async function downloadArchive(url, dest, expectedHash, id, maxBytes = MAX_ARCHIVE_BYTES) {
+async function legacyDownloadArchive(url, dest, expectedHash, id, maxBytes = MAX_ARCHIVE_BYTES) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30 * 60 * 1000);
   let total = 0;
@@ -301,6 +310,87 @@ function checkMiniArchive(zipPath) {
     });
   });
 }
+async function checkNativeArchive(zipPath) {
+  return new Promise((resolve, reject) => {
+    yauzl.open(zipPath, { lazyEntries: true, decodeStrings: true, validateEntrySizes: true }, (error, zip) => {
+      if (error) return reject(error);
+      let count = 0, size = 0, done = false;
+      const fail = e => { if (!done) { done = true; zip.close(); reject(e); } };
+      zip.on('error', fail);
+      zip.on('entry', entry => {
+        const name = entry.fileName;
+        const parts = name.split('/');
+        const mode = (entry.externalFileAttributes >>> 16) & 0o170000;
+        count++; size += entry.uncompressedSize;
+        if (count > 6000 || size > 10 * 1024 ** 3 || name.includes('\\') || name.startsWith('/') ||
+            parts.some(p => p === '.' || p === '..') || /[:\x00-\x1f]/.test(name) ||
+            mode === 0o120000 || (mode && mode !== 0o100000 && mode !== 0o040000)) {
+          return fail(new Error('Unsicheres oder zu großes Windows-Spielarchiv.'));
+        }
+        zip.readEntry();
+      });
+      zip.on('end', () => { if (!done) { done = true; resolve(); } });
+      zip.readEntry();
+    });
+  });
+}
+async function markPlay(id, startedAt) {
+  const seconds = Math.max(1, Math.min(365 * 86400, Math.round((Date.now() - startedAt) / 1000)));
+  gameStats[id] = { ...(gameStats[id] || {}), seconds: (gameStats[id]?.seconds || 0) + seconds,
+    lastPlayed: new Date().toISOString(), sessions: (gameStats[id]?.sessions || 0) + 1 };
+  await writeJsonAtomic(statsPath(), gameStats);
+  notify('stats', { stats: gameStats });
+  runningGames.delete(id);
+}
+async function installVerifiedGame(task) {
+  if (process.platform !== 'win32') throw new Error('Spielinstallationen sind bislang nur unter Windows verfügbar.');
+  const game = gameById(task.id);
+  if (!game || !game.release || game.release.version !== task.version || game.release.sha256 !== task.sha256) {
+    throw new Error('Katalogänderung während des Downloads. Bitte erneut starten.');
+  }
+  if (task.format === 'html') await checkMiniArchive(task.archive);
+  else await checkNativeArchive(task.archive);
+  const root = path.resolve(installed[task.id] ? (installed[task.id].installRoot || path.join(app.getPath('userData'), 'installed-games')) : gameRoot());
+  await fsp.mkdir(root, { recursive: true });
+  // A per-user or user-selected root; every installed game remains inside a dedicated ID directory.
+  const destination = path.join(root, task.id);
+  const working = await fsp.mkdtemp(path.join(root, '.novalab-install-'));
+  const unpacked = path.join(working, 'next');
+  const backup = path.join(working, 'previous');
+  const previous = installed[task.id];
+  let backedUp = false, activated = false;
+  try {
+    await fsp.mkdir(unpacked);
+    await extractZip(task.archive, { dir: unpacked });
+    const relative = task.entry.split('/');
+    const entry = safeEntry(unpacked, task.entry);
+    const resolved = await fsp.realpath(entry), realRoot = await fsp.realpath(unpacked);
+    if (!resolved.startsWith(realRoot + path.sep) || !(await fsp.stat(resolved)).isFile() ||
+        (task.format === 'html' ? !/\.html?$/i.test(task.entry) : !/\.exe$/i.test(task.entry))) {
+      throw new Error('Startdatei fehlt oder Archiv ist ungültig.');
+    }
+    // Installer-owned marker prevents accidental deletion of unrelated directories.
+    await fsp.writeFile(path.join(unpacked, '.novalab-install.json'), JSON.stringify({ id: task.id, version: task.version }));
+    if (fs.existsSync(destination)) {
+      const link = await fsp.lstat(destination);
+      if (link.isSymbolicLink()) throw new Error('Installationsverzeichnis ist ein Link.');
+      if (previous?.installRoot && path.resolve(previous.installRoot) !== root) throw new Error('Installationspfad-Konflikt.');
+      await fsp.rename(destination, backup); backedUp = true;
+    }
+    await fsp.rename(unpacked, destination); activated = true;
+    installed[task.id] = { version: task.version, entry: task.entry, format: task.format,
+      installRoot: root, installedAt: new Date().toISOString() };
+    await writeJsonAtomic(statePath(), installed);
+    notify('installed', { id: task.id, installed });
+  } catch (error) {
+    if (activated) await fsp.rm(destination, { recursive: true, force: true });
+    if (backedUp) await fsp.rename(backup, destination);
+    if (previous) installed[task.id] = previous; else delete installed[task.id];
+    throw error;
+  } finally {
+    await fsp.rm(working, { recursive: true, force: true }).catch(() => {});
+  }
+}
 const GAME_CSP = "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
 const CONTENT_TYPES = { '.html':'text/html; charset=utf-8', '.htm':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.mjs':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.json':'application/json', '.wasm':'application/wasm', '.svg':'image/svg+xml', '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp', '.gif':'image/gif', '.ico':'image/x-icon', '.mp3':'audio/mpeg', '.wav':'audio/wav', '.ogg':'audio/ogg', '.mp4':'video/mp4', '.webm':'video/webm', '.woff':'font/woff', '.woff2':'font/woff2', '.ttf':'font/ttf', '.txt':'text/plain; charset=utf-8', '.glb':'model/gltf-binary', '.gltf':'model/gltf+json' };
 function prepareMiniGames() {
@@ -336,55 +426,18 @@ function openMiniGame(id, entry, title) {
   });
   window.webContents.setWindowOpenHandler(() => ({action:'deny'}));
   window.webContents.on('will-navigate', (event, url) => { if (!url.startsWith('novalab-game://' + id + '/')) event.preventDefault(); });
+  const started = Date.now();
+  runningGames.set(id, window);
+  window.on('closed', () => markPlay(id, started).catch(() => {}));
   window.loadURL('novalab-game://' + id + '/' + entry.split('/').map(encodeURIComponent).join('/'));
 }
 
 async function installGame(id) {
+  if (process.platform !== 'win32') throw new Error('Spielinstallationen sind derzeit nur unter Windows unterstützt.');
   const game = gameById(id);
-  if (!game || !game.release) throw new Error('Für dieses Projekt wurde noch kein Download veröffentlicht.');
-  if (process.platform !== 'win32') throw new Error('Der Launcher unterstützt Spieleinstallationen derzeit unter Windows.');
-  if (activeDownload) throw new Error('Ein anderer Download läuft bereits.');
-  const release = game.release;
-  await fsp.mkdir(gameRoot(), { recursive: true });
-  const workDir = await fsp.mkdtemp(path.join(gameRoot(), '.download-'));
-  activeDownload = { id, title: game.title };
-  notify('download', { id, phase: 'starting', percent: 0 });
-  const zipPath = path.join(workDir, 'game.zip');
-  const unpacked = path.join(workDir, 'unpacked');
-  const finalPath = localGamePath(id);
-  const backupPath = path.join(workDir, 'backup');
-  let backedUp = false;
-  let swapped = false;
-  const previousRecord = installed[id];
-  try {
-    await downloadArchive(release.url, zipPath, release.sha256, id, release.format === 'html' ? MAX_MINI_ARCHIVE_BYTES : MAX_ARCHIVE_BYTES);
-    if (release.format === 'html') await checkMiniArchive(zipPath);
-    notify('download', { id, phase: 'extracting', percent: 100 });
-    await fsp.mkdir(unpacked, { recursive: true });
-    await extractZip(zipPath, { dir: unpacked });
-    const entry = safeEntry(unpacked, release.entry);
-    const realRoot = await fsp.realpath(unpacked);
-    const realEntry = await fsp.realpath(entry);
-    if (!realEntry.startsWith(realRoot + path.sep) || !(await fsp.stat(realEntry)).isFile()) throw new Error('Ungültige Startdatei im Spielarchiv');
-    if (release.format === 'html' && path.extname(entry).toLowerCase() !== '.html') throw new Error('Das Mini-Spiel muss eine HTML-Startdatei haben.');
-    if (fs.existsSync(finalPath)) { await fsp.rename(finalPath, backupPath); backedUp = true; }
-    await fsp.rename(unpacked, finalPath);
-    swapped = true;
-    installed[id] = { version: release.version, entry: release.entry, format: release.format, installedAt: new Date().toISOString() };
-    await writeJsonAtomic(statePath(), installed);
-    notify('installed', { id, installed });
-  } catch (error) {
-    if (swapped && fs.existsSync(finalPath)) await fsp.rm(finalPath, { recursive: true, force: true });
-    if (backedUp && fs.existsSync(backupPath)) await fsp.rename(backupPath, finalPath);
-    if (previousRecord) installed[id] = previousRecord; else delete installed[id];
-    notify('download', { id, phase: 'error', error: error.message });
-    throw error;
-  } finally {
-    activeDownload = null;
-    await fsp.rm(workDir, { recursive: true, force: true }).catch(() => {});
-    notify('download-idle', { id });
-  }
-  return { ok: true };
+  if (!game?.release) throw new Error('Dieses Spiel ist noch nicht veröffentlicht.');
+  if (runningGames.has(id)) throw new Error('Bitte das Spiel vor dem Update schließen.');
+  return { queued: true, task: await downloads.enqueue(game) };
 }
 async function launchGame(id) {
   if (!ALLOWED_GAME_ID.test(id || '') || !installed[id]) throw new Error('Spiel ist nicht installiert.');
@@ -400,22 +453,42 @@ async function launchGame(id) {
     return {ok: true};
   }
   if (!/\.exe$/i.test(actualTarget)) throw new Error('Spiel-EXE fehlt.');
+  const started = Date.now();
   const child = spawn(actualTarget, [], { cwd: path.dirname(actualTarget), detached: true, stdio: 'ignore', windowsHide: false });
-  child.once('error', err => notify('error', { message: 'Spielstart fehlgeschlagen: ' + err.message }));
+  runningGames.set(id, child);
+  child.once('error', err => { runningGames.delete(id); notify('error', { message: 'Spielstart fehlgeschlagen: ' + err.message }); });
+  child.once('exit', () => markPlay(id, started).catch(() => {}));
   child.unref();
   return { ok: true };
 }
 async function uninstallGame(id) {
   if (!ALLOWED_GAME_ID.test(id || '') || !installed[id]) throw new Error('Spiel nicht installiert.');
-  if (activeDownload) throw new Error('Während eines Downloads ist Deinstallieren nicht möglich.');
-  const base = gameRoot();
-  const destination = localGamePath(id);
-  if (path.dirname(destination) !== base || (fs.existsSync(destination) && (await fsp.lstat(destination)).isSymbolicLink())) throw new Error('Ungültiges Installationsverzeichnis.');
+  if (runningGames.has(id)) throw new Error('Bitte das Spiel zuerst schließen.');
+  if (downloads?.active === id) throw new Error('Bitte den Download erst abbrechen.');
+  const root = path.resolve(installed[id].installRoot || path.join(app.getPath('userData'), 'installed-games'));
+  const destination = path.join(root, id);
+  if (path.dirname(destination) !== root || !fs.existsSync(destination) || (await fsp.lstat(destination)).isSymbolicLink()) {
+    throw new Error('Ungültiges Installationsverzeichnis.');
+  }
+  if (installed[id].installRoot) {
+    const marker = readJson(path.join(destination, '.novalab-install.json'), null);
+    if (marker?.id !== id) throw new Error('Installationsmarkierung fehlt. Dateien bleiben unberührt.');
+  }
   await fsp.rm(destination, { recursive: true, force: true });
-  delete installed[id];
-  await writeJsonAtomic(statePath(), installed);
+  delete installed[id]; await writeJsonAtomic(statePath(), installed);
   notify('installed', { id, installed });
   return { ok: true };
+}
+async function verifyGame(id) {
+  if (!ALLOWED_GAME_ID.test(id || '') || !installed[id]) throw new Error('Spiel nicht installiert.');
+  const rec = installed[id];
+  const root = await fsp.realpath(localGamePath(id));
+  const target = safeEntry(root, rec.entry);
+  const resolved = await fsp.realpath(target);
+  if (!resolved.startsWith(root + path.sep) || !(await fsp.stat(resolved)).isFile()) throw new Error('Startdatei beschädigt oder gelöscht.');
+  const marker = readJson(path.join(root, '.novalab-install.json'), null);
+  if (rec.installRoot && (marker?.id !== id || marker?.version !== rec.version)) throw new Error('Installationsmarkierung ungültig.');
+  return { ok: true, message: 'Startdatei und Installationsstruktur sind vorhanden. Vollständige Reparatur benötigt ein Dateimanifest.' };
 }
 function setupUpdater() {
   updateController = createUpdateController({
@@ -455,10 +528,19 @@ function createWindow() {
 }
 
 app.setAppUserModelId(APP_ID);
+const singleInstance = app.requestSingleInstanceLock();
+if (!singleInstance) app.quit();
+else app.on('second-instance', () => { if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
 app.whenReady().then(async () => {
+  if (!singleInstance) return;
   installed = readJson(statePath(), {});
   if (!installed || typeof installed !== 'object' || Array.isArray(installed)) installed = {};
   settings = { ...settings, ...readJson(settingsPath(), {}) };
+  gameStats = readJson(statsPath(), {});
+  if (!gameStats || Array.isArray(gameStats) || typeof gameStats !== 'object') gameStats = {};
+  downloads = new DownloadManager({ directory: path.join(app.getPath('userData'), 'download-cache'),
+    onChange: tasks => notify('download-list', { tasks }), onReady: installVerifiedGame });
+  await downloads.init();
   setupUpdater();
   createWindow();
   await Promise.allSettled([loadCatalog(), restoreAccount()]);
@@ -475,6 +557,18 @@ register('refresh-catalog', () => loadCatalog());
 register('install', id => installGame(id));
 register('launch', id => launchGame(id));
 register('uninstall', id => uninstallGame(id));
+register('verify-game', id => verifyGame(id));
+register('pause-download', id => downloads.pause(id));
+register('resume-download', id => downloads.resume(id));
+register('cancel-download', id => downloads.cancel(id));
+register('open-game-folder', async id => { if (!installed[id]) throw new Error('Spiel nicht installiert.'); const err=await shell.openPath(localGamePath(id)); if(err) throw new Error(err); return {ok:true}; });
+register('choose-install-folder', async () => {
+  const selected = await dialog.showOpenDialog(win, { properties:['openDirectory','createDirectory'], title:'Spiele-Installationsverzeichnis auswählen' });
+  if (selected.canceled || !selected.filePaths.length) return {canceled:true};
+  const root = await fsp.realpath(selected.filePaths[0]);
+  settings.installRoot = root; await writeJsonAtomic(settingsPath(), settings);
+  return { root };
+});
 register('check-update', () => checkUpdates());
 register('download-update', () => updateController.download());
 register('restart-update', () => updateController.restart());

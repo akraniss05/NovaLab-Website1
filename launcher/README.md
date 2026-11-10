@@ -1,3 +1,7 @@
+# NovaLab Desktop Launcher v0.5.0 — Phase 1 + 2
+
+Siehe [PHASES-1-2.md](./PHASES-1-2.md) für den aktuellen Entwicklungsstand, Build-Anweisungen, echte Funktionen, Risiken und Tests.
+
 ## v0.3.0: NovaLab-Accounts, Academy und Admin Studio
 
 - Jeder kann sich kostenlos mit Benutzername und Passwort registrieren (mindestens 10 Zeichen, keine Mailadresse notwendig).

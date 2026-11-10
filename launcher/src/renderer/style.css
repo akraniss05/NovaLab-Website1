@@ -89,3 +89,15 @@ html,body{background:#0d1320}
 .details-body{padding:28px 33px 34px;display:grid;grid-template-columns:1.4fr .75fr;gap:30px}.details-body p{line-height:1.8;white-space:pre-wrap;color:#aec3d6;font-size:13px}.details-meta{display:flex;flex-wrap:wrap;gap:12px;margin-top:25px}.details-meta>span{border:1px solid #62849b43;background:#1b3346;padding:12px;border-radius:4px;color:#83a8be;font-size:10px;display:grid;gap:5px;min-width:95px}.details-meta strong{color:#e0f1fb;font-size:12px}.details-side{background:#20354a;padding:19px;border:1px solid #638ba34a;border-radius:5px;align-self:start;display:grid;gap:12px}.details-side h3{margin:0;font-size:17px}.details-side p{margin:0}.details-side button{width:100%;padding:13px}.details-side .secondary-button{background:#1b2e41}
 @media(max-width:1250px){.top-brand{display:none}.top-nav{gap:2px}.top-nav button{padding:0 8px}.top-user span:first-child{display:none}.sidebar{width:225px}.quick-library{max-height:110px}}
 @media(max-width:970px){.top-nav button{font-size:10px;letter-spacing:.1px;padding:0 6px}.top-user{padding-left:5px}.page{padding-left:23px;padding-right:23px}.sidebar{width:208px}.hero-content{min-width:365px}.details-body{grid-template-columns:1fr}.details-side{grid-template-columns:1fr 1fr}.details-side h3,.details-side p{grid-column:1/-1}}
+
+/* Phase 2: functional queue and library controls */
+.download-queue{display:grid;gap:12px;margin-top:16px}
+.download-task{padding:22px;background:linear-gradient(130deg,#18243a,#111625);border:1px solid #6fa7f02a;border-radius:14px}
+.download-task-head{display:flex;justify-content:space-between;gap:18px;margin-bottom:12px;align-items:center}
+.download-task-head strong{font-size:15px;color:#f2f6ff}.download-task-head span{font-size:12px;color:#a4bddb}
+.download-task .progress-track{height:7px;margin:12px 0}.download-task .hint{font-size:12px;margin:8px 0}
+.download-task-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:15px}
+.download-error{color:#ff9ab4;font-size:12px;line-height:1.5;margin:8px 0}
+.library-choices{display:flex;gap:7px;flex-wrap:wrap}.library-choices .secondary-button{padding:8px 12px;font-size:11px}
+.details-side .secondary-button{width:100%;margin-top:8px}
+@media(max-width:1120px){.library-toolbar{flex-wrap:wrap;gap:12px}}

@@ -10,6 +10,8 @@ let confirmId = null;
 let toastTimeout;
 let download = null;
 let detailId = null;
+let libraryMode = "all";
+let librarySort = "recent";
 let favorites = [];
 try { favorites = JSON.parse(localStorage.getItem('novalab:favorites') || '[]').filter(x => typeof x === 'string').slice(0, 100); } catch { favorites = []; }
 const versionNumber = v => String(v || '0.0.0').split('.').map(n => parseInt(n, 10) || 0);
@@ -22,7 +24,10 @@ const RELEASE_URL = 'https://github.com/akraniss05/NovaLab-Website1/releases/lat
 
 const $ = id => document.getElementById(id);
 const escapeHTML = value => String(value == null ? '' : value).replace(/[&<>"']/g, x => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[x]);
-const phaseLabel = value => ({ starting: 'Download wird vorbereitet …', downloading: 'Spieldateien werden heruntergeladen …', extracting: 'Dateien werden entpackt …', error: 'Installation fehlgeschlagen' }[value] || 'Bereit');
+const phaseLabel = value => ({ queued:'In Warteschlange', downloading:'Lädt herunter', verifying:'Prüfsumme wird überprüft', installing:'Installiert Dateien', complete:'Installiert', paused:'Pausiert', failed:'Fehlgeschlagen' }[value] || 'Bereit');
+const readableSize = bytes => Number.isFinite(bytes) ? (bytes < 1048576 ? (bytes / 1024).toFixed(1)+' KB' : (bytes / 1048576).toFixed(1)+' MB') : '–';
+const readableTime = sec => Number.isFinite(sec) && sec >= 0 ? Math.floor(sec / 60) + 'm ' + Math.floor(sec % 60) + 's' : '–';
+const activeTask = id => (state.downloads||[]).find(x=>x.id===id && !['complete','failed'].includes(x.phase));
 function toast(message, isError = false) {
   const el = $('toast');
   el.textContent = String(message || 'Unbekannter Fehler');
@@ -56,6 +61,8 @@ function iconFor(game) {
   return game.type === 'tool' ? '✧' : '✦';
 }
 function cardAction(game) {
+  const active = activeTask(game.id);
+  if (active) return `<button class="card-button update" type="button" data-page="downloads">${active.phase === 'paused' ? 'Pausiert' : active.phase === 'queued' ? 'Warteschlange' : 'Download läuft'} ↓</button>`;
   const entry = state.installed[game.id];
   if (entry) {
     if (game.release && isNewerVersion(game.release.version, entry.version)) return `<button class="card-button update" data-action="install" data-id="${escapeHTML(game.id)}">Update ↓</button>`;
@@ -87,10 +94,12 @@ function openDetails(id) {
   if (!game) return toast('Spiel nicht gefunden.',true);
   detailId = id;
   const installed = state.installed[id];
+  const stats = state.stats?.[id] || {};
+  const favorite = favorites.includes(id);
   const accent = /^#[0-9a-f]{6}$/i.test(game.accent||'') ? game.accent : '#8771ed';
   const tags = (game.tags || []).map(t=>`<span class="tag">${escapeHTML(t)}</span>`).join('');
   const version = game.release?.version || (installed?.version || 'Noch kein Release');
-  $('detailsContent').innerHTML = `<div class="details-hero" style="--accent:${accent}"><div class="details-art-symbol">${escapeHTML(iconFor(game))}</div><div class="details-hero-shade"><span class="eyebrow">NOVALAB STUDIOS / ${escapeHTML(game.type.toUpperCase())}</span><h2>${escapeHTML(game.title)}</h2><div class="details-tags">${tags}</div></div></div><div class="details-body"><div class="details-info"><span class="eyebrow">DAS SPIEL</span><p>${escapeHTML(game.description || game.subtitle || 'Ein Projekt von NovaLab Studios.')}</p><div class="details-meta"><span>STATUS <strong>${escapeHTML(game.status)}</strong></span><span>VERSION <strong>${escapeHTML(version)}</strong></span><span>PLATTFORM <strong>${game.release?.format === 'html' ? 'HTML5 / Windows' : 'Windows / Web'}</strong></span></div></div><div class="details-side"><h3>Deine Bibliothek</h3><p>${installed ? 'Dieses Spiel ist lokal installiert.' : game.release ? 'Kostenlos und auf Wunsch installierbar.' : 'Eine Veröffentlichung ist in Planung.'}</p>${cardAction(game)}${installed ? `<button class="secondary-button" data-action="uninstall" data-id="${escapeHTML(id)}" type="button">Deinstallieren</button>` : ''}<button class="secondary-button" data-action="close-details" type="button">Schließen</button></div></div>`;
+  $('detailsContent').innerHTML = `<div class="details-hero" style="--accent:${accent}"><div class="details-art-symbol">${escapeHTML(iconFor(game))}</div><div class="details-hero-shade"><span class="eyebrow">NOVALAB STUDIOS / ${escapeHTML(game.type.toUpperCase())}</span><h2>${escapeHTML(game.title)}</h2><div class="details-tags">${tags}</div></div></div><div class="details-body"><div class="details-info"><span class="eyebrow">DAS SPIEL</span><p>${escapeHTML(game.description || game.subtitle || 'Ein Projekt von NovaLab Studios.')}</p><div class="details-meta"><span>STATUS <strong>${escapeHTML(game.status)}</strong></span><span>VERSION <strong>${escapeHTML(version)}</strong></span><span>PLATTFORM <strong>${game.release?.format === 'html' ? 'HTML5 / Windows' : 'Windows / Web'}</strong></span></div></div><div class="details-side"><h3>Deine Bibliothek</h3><p>${installed ? 'Dieses Spiel ist lokal installiert.' : game.release ? 'Kostenlos und auf Wunsch installierbar.' : 'Eine Veröffentlichung ist in Planung.'}</p>${cardAction(game)}<button class="secondary-button" data-action="favorite" data-id="${escapeHTML(id)}" type="button">${favorite ? '★ Aus Favoriten entfernen' : '☆ Zu Favoriten hinzufügen'}</button><p class="hint">Spielzeit: ${readableTime(stats.seconds || 0)}${stats.lastPlayed ? ' · Zuletzt: '+new Date(stats.lastPlayed).toLocaleDateString('de-DE') : ''}</p>${installed ? `<button class="secondary-button" data-action="verify-game" data-id="${escapeHTML(id)}" type="button">Dateien prüfen</button><button class="secondary-button" data-action="open-game-folder" data-id="${escapeHTML(id)}" type="button">Installationsordner öffnen</button><button class="secondary-button" data-action="uninstall" data-id="${escapeHTML(id)}" type="button">Deinstallieren</button>` : ''}<button class="secondary-button" data-action="close-details" type="button">Schließen</button></div></div>`;
   $('detailsOverlay').classList.remove('hidden');
 }
 function closeDetails() { detailId=null; $('detailsOverlay').classList.add('hidden'); }
@@ -106,22 +115,34 @@ function renderDiscover() {
   $('noResults').classList.toggle('hidden', found.length > 0);
 }
 function renderLibrary() {
-  const found = libraryItems();
-  $('librarySummary').textContent = `${found.length} installiert${found.length === 1 ? 'es Spiel' : 'e Spiele'}`;
+  let found = libraryItems();
+  if (libraryMode === 'favorites') found = found.filter(g => favorites.includes(g.id));
+  if (libraryMode === 'updates') found = found.filter(g => isNewerVersion(g.release?.version, state.installed[g.id]?.version));
+  if (librarySort === 'name') found.sort((a,b) => a.title.localeCompare(b.title,'de'));
+  if (librarySort === 'recent') found.sort((a,b) => (state.stats?.[b.id]?.lastPlayed || '').localeCompare(state.stats?.[a.id]?.lastPlayed || ''));
+  if (librarySort === 'time') found.sort((a,b) => (state.stats?.[b.id]?.seconds || 0) - (state.stats?.[a.id]?.seconds || 0));
+  $('librarySummary').textContent = `${found.length} ${libraryMode === 'favorites' ? 'Favoriten' : libraryMode === 'updates' ? 'Updates verfügbar' : 'installierte Spiele'}`;
   $('libraryGrid').innerHTML = found.map(g => gameCard(g, { uninstall: true })).join('');
   $('emptyLibrary').classList.toggle('hidden', found.length > 0);
 }
 function renderDownload() {
-  const data = download;
-  const isActive = data && ['starting', 'downloading', 'extracting'].includes(data.phase);
-  $('downloadProgressBox').classList.toggle('hidden', !isActive);
-  $('downloadDescription').textContent = isActive ? 'Eine Installation wird gerade verarbeitet.' : 'Derzeit werden keine Spieldateien heruntergeladen.';
-  if (isActive) {
-    $('downloadGame').textContent = state.games.find(g => g.id === data.id)?.title || data.id;
-    $('downloadPercent').textContent = data.phase === 'extracting' ? 'Entpacken' : data.percent + '%';
-    $('downloadBar').style.width = data.percent + '%';
-    $('downloadPhase').textContent = phaseLabel(data.phase) + (data.total ? ' · ' + (data.bytes / 1048576).toFixed(1) + ' / ' + (data.total / 1048576).toFixed(1) + ' MB' : '');
+  const tasks = state.downloads || [];
+  const running = tasks.find(t => ['downloading','verifying','installing'].includes(t.phase));
+  $('downloadProgressBox').classList.toggle('hidden', !running);
+  $('downloadDescription').textContent = running ? `Aktiv: ${running.title}` : `${tasks.filter(t=>t.phase==='queued').length} Downloads in Warteschlange`;
+  if (running) {
+    $('downloadGame').textContent = running.title;
+    $('downloadPercent').textContent = running.phase === 'downloading' ? (running.total ? running.percent + '%' : readableSize(running.bytes)) : phaseLabel(running.phase);
+    $('downloadBar').style.width = (running.total ? running.percent : 0) + '%';
+    $('downloadPhase').textContent = `${phaseLabel(running.phase)} · ${readableSize(running.bytes)}${running.total ? ' / '+readableSize(running.total):''} · ${readableSize(running.speed)}/s · ETA ${readableTime(running.eta)}`;
   }
+  $('downloadQueue').innerHTML = tasks.length ? tasks.map(t => {
+    const buttons = ['downloading','queued'].includes(t.phase) ?
+      `<button class="secondary-button" data-action="pause-download" data-id="${escapeHTML(t.id)}">Pausieren</button>` :
+      ['paused','failed'].includes(t.phase) ? `<button class="secondary-button" data-action="resume-download" data-id="${escapeHTML(t.id)}">${t.phase === 'failed'?'Erneut versuchen':'Fortsetzen'}</button>` : '';
+    const cancel = t.phase === 'complete' ? '' : `<button class="secondary-button" data-action="cancel-download" data-id="${escapeHTML(t.id)}">Abbrechen</button>`;
+    return `<article class="download-task"><div class="download-task-head"><strong>${escapeHTML(t.title)}</strong><span>${escapeHTML(phaseLabel(t.phase))} · v${escapeHTML(t.version)}</span></div><div class="progress-track"><div class="progress-fill" style="width:${Math.max(0,Math.min(100,t.percent || 0))}%"></div></div><p class="hint">${readableSize(t.bytes)}${t.total ? ' / ' + readableSize(t.total) : ''} · ${readableSize(t.speed)}/s · ${readableTime(t.eta)} verbleibend</p>${t.error ? `<p class="download-error">${escapeHTML(t.error)}</p>` : ''}<div class="download-task-actions">${buttons}${cancel}</div></article>`;
+  }).join('') : '<p class="hint">Noch keine Downloads gestartet. Wähle im Store ein verfügbares Spiel aus.</p>';
 }
 function renderUpdateWidgets() {
   const update=state.update||{};
@@ -151,7 +172,7 @@ function renderUpdateWidgets() {
   $('topUpdateLabel').textContent=ready?'INSTALLIEREN':progress?`${pct}%`:'UPDATE';
   $('bottomStatus').textContent=progress?`Launcher-Update: ${pct}%`:ready?'Neuer Launcher bereit – Neustart erforderlich':download?.phase && download.phase!=='error'?phaseLabel(download.phase):'Bereit für neue Abenteuer';
 }
-function renderSettings() { renderUpdateWidgets(); }
+function renderSettings() { renderUpdateWidgets(); $('installPath').textContent = state.settings?.installRoot || 'Standardverzeichnis (App-Daten)'; }
 function renderAccount() {
   const a = state.account;
   $('accountLoggedOut').classList.toggle('hidden', !!a);
@@ -193,9 +214,16 @@ async function act(action, id, element) {
     closeDetails();
     selectPage('downloads');
     const result = await invoke('install', id);
-    if (result) { toast(game.title + ' wurde installiert.'); state.installed = (await api.invoke('get-state')).installed; renderAll(); }
+    if (result) { toast(game.title + ' steht jetzt in der Downloadliste.'); const snapshot=await api.invoke('get-state'); state.downloads=snapshot.downloads; renderAll(); }
   }
   if (action === 'launch') await invoke('launch', id);
+  if (action === 'favorite') { favorites = favorites.includes(id) ? favorites.filter(x => x !== id) : [...favorites,id]; try {localStorage.setItem('novalab:favorites', JSON.stringify(favorites));}catch {} if (detailId === id) openDetails(id); renderLibrary(); toast(favorites.includes(id)?'Zu Favoriten hinzugefügt.':'Favorit entfernt.'); }
+  if (action === 'verify-game') { const x=await invoke('verify-game',id); if(x) toast(x.message); }
+  if (action === 'open-game-folder') await invoke('open-game-folder',id);
+  if (['pause-download','resume-download','cancel-download'].includes(action)) { const x=await invoke(action,id); if(x) { const snapshot=await api.invoke('get-state'); state.downloads=snapshot.downloads; renderDownload(); } }
+  if (action === 'choose-install-folder') { const x=await invoke('choose-install-folder'); if(x && !x.canceled) {state.settings.installRoot=x.root;renderSettings();toast('Speicherort für zukünftige Installationen aktualisiert.');} }
+  if (action === 'library-mode') { libraryMode=id; renderLibrary(); }
+  if (action === 'library-sort') { librarySort=id; renderLibrary(); }
   if (action === 'uninstall') {
     closeDetails();
     confirmId = id;
@@ -226,7 +254,9 @@ function handleEvent(event) {
   if (!event || !event.type) return;
   if (event.type === 'auth') { state.account = event.account; renderAccount(); if (page === 'admin' && (!state.account || state.account.mustChangePassword)) selectPage('account'); }
   if (event.type === 'catalog') { state.games = event.games; state.source = event.source; renderAll(); }
-  if (event.type === 'installed') { state.installed = event.installed; renderAll(); }
+  if (event.type === 'installed') { state.installed = event.installed; renderAll(); toast('Installation erfolgreich abgeschlossen.'); }
+  if (event.type === 'stats') { state.stats = event.stats; renderLibrary(); }
+  if (event.type === 'download-list') { state.downloads = event.tasks; renderDownload(); renderHome(); }
   if (event.type === 'updater') {
     state.update = event.update;
     renderUpdateWidgets();
