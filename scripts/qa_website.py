@@ -2,6 +2,7 @@
 """Dependency-free website integrity checks. Does not modify production data."""
 from html.parser import HTMLParser
 from pathlib import Path
+from xml.etree import ElementTree as ET
 import re
 import sys
 
@@ -44,4 +45,11 @@ assert '.nv-hero-layout' in styles and '@media(max-width:580px)' in styles
 js=(ROOT/'app.js').read_text(encoding='utf8')
 assert 'window.innerWidth>1090' in js
 assert 'verifyOfficialProject' in js
-print(f'OK: {len(parser.section_routes)} routes, {len(parser.ids)} unique IDs, {len(parser.local_urls)} local assets, website v14 CSS & JS')
+for asset in ('site-hero.svg','site-code.svg','site-launcher.svg','site-games.svg','site-beat.svg'):
+    ET.parse(ROOT/'assets'/asset)
+for local_page in ('launcher/download.html','launcher/mini-games/index.html'):
+    contents=(ROOT/local_page).read_text(encoding='utf8')
+    assert '<html lang="de">' in contents
+    assert 'NovaLab' in contents
+    assert '</html>' in contents
+print(f'OK: {len(parser.section_routes)} routes, {len(parser.ids)} unique IDs, {len(parser.local_urls)} local resources, 5 valid SVG assets, download page, Mini-Games and JavaScript')
