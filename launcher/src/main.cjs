@@ -18,6 +18,8 @@ const WEBSITE = 'https://akraniss05.github.io/NovaLab-Website1/';
 const DISCORD = 'https://discord.gg/SZhYa6Nnmy';
 const REMOTE_CATALOG = 'https://raw.githubusercontent.com/akraniss05/NovaLab-Website1/main/launcher/catalog.json';
 const COMMUNITY_API = 'https://ekgxotvvhkmeuxvuwbei.supabase.co/functions/v1/novalab-launcher-api';
+const STUDIO_API = 'https://ekgxotvvhkmeuxvuwbei.supabase.co/functions/v1/novalab-studio-api';
+const STUDIO_MEDIA_ORIGIN = 'https://ekgxotvvhkmeuxvuwbei.supabase.co';
 const ACADEMY_URL = 'https://liverylab-academy.dev/';
 const MAX_ARCHIVE_BYTES = 5 * 1024 * 1024 * 1024;
 const MAX_MINI_ARCHIVE_BYTES = 120 * 1024 * 1024;
@@ -47,6 +49,8 @@ let token = '';
 let account = null;
 let uploadFile = null;
 let academyWindow = null;
+let publisherWindow = null;
+let publisherBuildFile = null;
 const authPath = () => path.join(app.getPath('userData'), 'session.bin');
 
 function readJson(filename, fallback) {
@@ -75,8 +79,16 @@ function isValidRelease(release) {
     const legacyRelease = url.hostname === 'github.com' && /^\/akraniss05\/[a-zA-Z0-9_.-]+\/releases\/download\/[^/]+\/[^/]+\.zip$/i.test(url.pathname);
     const miniDownload = url.hostname === 'raw.githubusercontent.com' && /^\/akraniss05\/NovaLab-Website1\/main\/launcher\/mini-games\/downloads\/[a-z0-9-]+\/[a-z0-9.-]+\.zip$/i.test(url.pathname);
     const communityDownload = url.hostname === 'ekgxotvvhkmeuxvuwbei.supabase.co' && /^\/storage\/v1\/object\/public\/novalab-launcher-games\/community-[a-z0-9-]+\/[0-9]+\.[0-9]+\.[0-9]+\/[a-f0-9-]+\.zip$/i.test(url.pathname);
-    return url.protocol === 'https:' && (legacyRelease || (format === 'html' && (miniDownload || communityDownload))) && !url.username && !url.password && !url.search && !url.hash;
+    return url.protocol === 'https:' && (legacyRelease || (format === 'html' && miniDownload) || communityDownload) && !url.username && !url.password && !url.search && !url.hash;
   } catch { return false; }
+}
+function cleanStudioMedia(url) {
+  if (typeof url !== 'string') return '';
+  try {
+    const link=new URL(url);
+    return link.origin===STUDIO_MEDIA_ORIGIN &&
+      /^\/storage\/v1\/object\/public\/novalab-studio-media\/community-[a-z0-9-]+\/[a-f0-9-]+\.(?:png|jpg|webp|mp4|webm)$/.test(link.pathname) && !link.search && !link.hash ? url : '';
+  } catch { return ''; }
 }
 function normalizeCatalog(raw) {
   if (!Array.isArray(raw)) throw new Error('Katalog muss eine Liste sein.');
@@ -94,12 +106,24 @@ function normalizeCatalog(raw) {
     tags: (Array.isArray(item.tags) ? item.tags : []).slice(0, 6).map(x => String(x).slice(0, 28)),
     accent: /^#[0-9a-f]{6}$/i.test(item.accent || '') ? item.accent : '#8f73ff',
     website: isSafeExternal(item.website) ? item.website : '',
+    genre: String(item.genre||'Indie').slice(0,40),
+    developer: String(item.developer||'NovaLab Studios').slice(0,80),
+    publisher: String(item.publisher||'NovaLab Studios').slice(0,80),
+    featured: item.featured===true,
+    cover: cleanStudioMedia(item.cover),
+    banner: cleanStudioMedia(item.banner),
+    screenshots: (Array.isArray(item.screenshots)?item.screenshots:[]).slice(0,20).map(cleanStudioMedia).filter(Boolean),
+    videos: (Array.isArray(item.videos)?item.videos:[]).slice(0,8).map(cleanStudioMedia).filter(Boolean),
+    requirements: { minimum: String(item.requirements?.minimum||'').slice(0,1000), recommended: String(item.requirements?.recommended||'').slice(0,1000) },
     release: isValidRelease(item.release) ? {
       version: item.release.version,
       url: item.release.url,
       sha256: item.release.sha256.toLowerCase(),
       entry: item.release.entry,
-      format: item.release.format === 'html' ? 'html' : 'windows'
+      format: item.release.format === 'html' ? 'html' : 'windows',
+      size: Number.isSafeInteger(item.release.size) && item.release.size>=0 ? item.release.size : null,
+      changelog: String(item.release.changelog||'').slice(0,5000),
+      updatedAt: String(item.release.updated_at||'').slice(0,80)
     } : null
   }));
 }
@@ -219,6 +243,112 @@ async function publishGame(form) {
   return result;
 }
 
+
+async function studioRequest(route, options={}) {
+  const headers={ 'User-Agent':'NovaLab-Launcher', ...(options.json?{'content-type':'application/json'}:{}) };
+  if(options.auth!==false && token)headers.authorization='Bearer '+token;
+  const response=await fetch(STUDIO_API+'/'+route,{method:options.method||'GET',headers,
+    body:options.form || (options.json?JSON.stringify(options.json):undefined),
+    signal:AbortSignal.timeout(options.form?90000:16000)});
+  const raw=await response.text();
+  if(raw.length>600000)throw new Error('Studio-Antwort zu groß.');
+  let data;
+  try{data=JSON.parse(raw);}catch{throw new Error('Studio-Server ist nicht erreichbar.');}
+  if(!response.ok)throw new Error(String(data.error||'Studio-Anfrage fehlgeschlagen.').slice(0,240));
+  return data;
+}
+function checkPublisherAuth() {
+  if(!account || account.role!=='admin' || account.mustChangePassword || !token)
+    throw new Error('Admin-Anmeldung erforderlich. Ändere zuerst dein Startpasswort.');
+}
+function openPublisher() {
+  checkPublisherAuth();
+  if(publisherWindow && !publisherWindow.isDestroyed()){publisherWindow.focus();return {ok:true};}
+  publisherWindow=new BrowserWindow({
+    title:'NovaLab Launcher · Administration',width:1520,height:920,minWidth:1040,minHeight:650,
+    backgroundColor:'#080c1a',show:false,autoHideMenuBar:true,
+    webPreferences:{
+      preload:path.join(__dirname,'publisher-preload.cjs'),
+      sandbox:true,contextIsolation:true,nodeIntegration:false,webSecurity:true,devTools:!app.isPackaged
+    }
+  });
+  publisherWindow.loadFile(path.join(__dirname,'renderer','publisher.html'));
+  publisherWindow.once('ready-to-show',()=>publisherWindow?.show());
+  publisherWindow.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+  publisherWindow.webContents.on('will-navigate',e=>e.preventDefault());
+  publisherWindow.on('closed',()=>{publisherWindow=null;publisherBuildFile=null;});
+  return {ok:true};
+}
+function verifyPublisher(event) {
+  if(!publisherWindow || publisherWindow.isDestroyed() ||
+    event.sender!==publisherWindow.webContents ||
+    event.senderFrame!==publisherWindow.webContents.mainFrame ||
+    !event.senderFrame.url.startsWith('file://') ||
+    !event.senderFrame.url.endsWith('/publisher.html'))
+    throw new Error('Nicht autorisierte Publisher-Anfrage.');
+  checkPublisherAuth();
+}
+function registerPublisher(name,fn){
+  ipcMain.handle('studio:'+name,async(event,...args)=>{verifyPublisher(event);return fn(...args);});
+}
+async function uploadPublisherMedia(data){
+  const {id,kind,alt}=data||{};
+  if(typeof id!=='string'||!/^community-[a-z0-9][a-z0-9-]{2,49}$/.test(id) ||
+     !['cover','banner','screenshot','video'].includes(kind))throw new Error('Ungültige Medienangaben.');
+  const isVideo=kind==='video';
+  const selected=await dialog.showOpenDialog(publisherWindow,{
+    title:isVideo?'Trailer auswählen':'Bild auswählen',properties:['openFile'],
+    filters:isVideo?[{name:'Video',extensions:['mp4','webm']}]:[{name:'Bild',extensions:['png','jpg','jpeg','webp']}]
+  });
+  if(selected.canceled || !selected.filePaths[0])return {canceled:true};
+  const filePath=selected.filePaths[0],ext=path.extname(filePath).toLowerCase();
+  const types={'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.mp4':'video/mp4','.webm':'video/webm'};
+  if(!types[ext] || isVideo!==types[ext].startsWith('video/'))throw new Error('Dieser Dateityp wird nicht unterstützt.');
+  const info=await fsp.stat(filePath);
+  if(!info.isFile()||info.size<100||info.size>(isVideo?8:5)*1024*1024)throw new Error('Datei zu groß oder ungültig.');
+  const bytes=await fsp.readFile(filePath);
+  const form=new FormData();
+  form.set('id',id);form.set('kind',kind);form.set('alt',String(alt||'').slice(0,160));
+  form.set('file',new Blob([bytes],{type:types[ext]}),path.basename(filePath));
+  return studioRequest('media',{method:'POST',form});
+}
+async function choosePublisherBuild(){
+  const res=await dialog.showOpenDialog(publisherWindow,{title:'Spielpaket auswählen',properties:['openFile'],
+    filters:[{name:'NovaLab Spiel',extensions:['zip','html']}]});
+  if(res.canceled||!res.filePaths[0])return {canceled:true};
+  const filePath=res.filePaths[0],info=await fsp.stat(filePath);
+  if(!info.isFile()||info.size<50||info.size>12*1024*1024)throw new Error('Spielpaket muss zwischen 50 Byte und 12 MB groß sein.');
+  publisherBuildFile=filePath;
+  return {name:path.basename(filePath),size:info.size};
+}
+async function uploadPublisherBuild(data){
+  if(!publisherBuildFile)throw new Error('Bitte zuerst eine HTML- oder ZIP-Datei auswählen.');
+  const f=data||{},id=String(f.id||''),format=String(f.format||''),version=String(f.version||'');
+  if(!/^community-[a-z0-9][a-z0-9-]{2,49}$/.test(id) || !/^\d+\.\d+\.\d+$/.test(version) ||
+     !['html','windows'].includes(format))throw new Error('Ungültige Build-Eingaben.');
+  const filePath=publisherBuildFile;
+  let archive;
+  if(/\.html$/i.test(filePath)){
+    if(format!=='html'||String(f.entry)!=='index.html')throw new Error('Einzelne HTML-Dateien benötigen index.html als Startdatei.');
+    const contents=await fsp.readFile(filePath);
+    if(contents.length>3*1024*1024||!/<(?:html|!doctype)/i.test(contents.toString('utf8').slice(0,4096)))
+      throw new Error('HTML-Datei ist ungültig oder zu groß.');
+    archive=zipHTML(contents);
+  }else{
+    if(!/\.zip$/i.test(filePath))throw new Error('Datei muss ein ZIP-Archiv sein.');
+    if(format==='html')await checkMiniArchive(filePath);
+    else await checkNativeArchive(filePath);
+    archive=await fsp.readFile(filePath);
+  }
+  if(archive.length>12*1024*1024)throw new Error('ZIP ist größer als 12 MB.');
+  const form=new FormData();
+  for(const key of ['id','version','format','entry','channel','changelog'])form.set(key,String(f[key]||''));
+  form.set('file',new Blob([archive],{type:'application/zip'}),id+'-'+version+'.zip');
+  const result=await studioRequest('upload-build',{method:'POST',form});
+  publisherBuildFile=null;
+  return result;
+}
+
 async function loadCatalog() {
   const bundled = normalizeCatalog(readJson(path.join(__dirname, '..', 'catalog.json'), []));
   catalog = bundled;
@@ -238,6 +368,13 @@ async function loadCatalog() {
       if (merged.length) { catalog = merged; catalogSource = 'online'; }
     }
   } catch { /* Community API may be offline. Bundled games remain available. */ }
+  try {
+    const studio=await studioRequest('catalog',{auth:false});
+    if(Array.isArray(studio.games)&&studio.games.length){
+      catalog=normalizeCatalog([...studio.games,...catalog]);
+      catalogSource='online';
+    }
+  }catch{/* Studio-Katalog offline: bisherige Spiele bleiben verfügbar. */}
   notify('catalog', { games: catalog, source: catalogSource });
   return { games: catalog, source: catalogSource };
 }
@@ -607,6 +744,7 @@ register('change-account-password', async data => {
   await saveToken(''); account = null; uploadFile = null; notify('auth', { account }); return result;
 });
 register('open-academy', () => { openAcademy(); return { ok: true }; });
+register('open-publisher', () => openPublisher());
 register('choose-game-file', () => chooseGameFile());
 register('publish-game', form => publishGame(form));
 register('admin-games', () => {
@@ -628,3 +766,20 @@ register('window', action => {
   else throw new Error('Unbekannte Fensteraktion');
   return { ok: true };
 });
+
+registerPublisher('list',()=>studioRequest('list'));
+registerPublisher('detail',id=>{
+  if(typeof id!=='string'||!/^community-[a-z0-9][a-z0-9-]{2,49}$/.test(id))throw new Error('Ungültige Spiel-ID.');
+  return studioRequest('detail?id='+encodeURIComponent(id));
+});
+registerPublisher('save',data=>studioRequest('save',{method:'POST',json:data}));
+registerPublisher('upload-media',data=>uploadPublisherMedia(data));
+registerPublisher('media-remove',data=>studioRequest('media-remove',{method:'POST',json:data}));
+registerPublisher('choose-build',()=>choosePublisherBuild());
+registerPublisher('upload-build',data=>uploadPublisherBuild(data));
+registerPublisher('publish',async data=>{
+  const result=await studioRequest('publish',{method:'POST',json:data});
+  await loadCatalog();
+  return result;
+});
+registerPublisher('refresh-catalog',()=>loadCatalog());
