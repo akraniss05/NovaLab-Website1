@@ -1,0 +1,35 @@
+[
+  {
+    "id": "novalab-game-01",
+    "title": "NovaLab Game 01",
+    "subtitle": "Das erste große Gaming-Projekt von NovaLab Studios",
+    "description": "Unsere erste Spielwelt entsteht. Entdecke Konzept, Entwicklung und zukünftige Releases direkt im Launcher. Ein spielbarer Download wurde noch nicht veröffentlicht.",
+    "type": "game",
+    "status": "In Entwicklung",
+    "tags": ["Gaming", "PC", "Coming soon"],
+    "accent": "#9a72ff",
+    "website": "https://akraniss05.github.io/NovaLab-Website1/#games"
+  },
+  {
+    "id": "novalab-academy",
+    "title": "NovaLab Academy",
+    "subtitle": "Coding und Blender – lerne in deinem Tempo",
+    "description": "Die NovaLab Academy verbindet Kurse für Programmiersprachen und Blender mit Aufgaben, Quizzen, XP und individuellen Lernpfaden. Die Web-App öffnet sich im Browser.",
+    "type": "app",
+    "status": "Beta",
+    "tags": ["Coding", "Blender", "Lernen"],
+    "accent": "#53c9ff",
+    "website": "https://liverylab-academy.dev/"
+  },
+  {
+    "id": "novalab-beat-maker",
+    "title": "NovaLab Beat Maker",
+    "subtitle": "Musik, Rhythmus und kreative Tools",
+    "description": "Hier entsteht eine Lernplattform rund um Beats, Rhythmus und Musikproduktion. Aktuell gibt es noch keine herunterladbare App.",
+    "type": "app",
+    "status": "In Entwicklung",
+    "tags": ["Musik", "Beats", "Kreativ"],
+    "accent": "#ff7aba",
+    "website": "https://akraniss05.github.io/NovaLab-Website1/#music"
+  }
+]

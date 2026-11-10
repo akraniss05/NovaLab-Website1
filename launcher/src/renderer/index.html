@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>NovaLab Launcher</title>
+  <link rel="stylesheet" href="./style.css">
+  <script defer src="./app.js"></script>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand" aria-label="NovaLab Studios"><div class="brand-symbol"><span>✦</span></div><div class="brand-text"><strong>NOVA<span>LAB</span></strong><small>GAME LAUNCHER</small></div></div>
+    <div class="nav-heading">ENTDECKEN</div>
+    <nav id="navigation" aria-label="Hauptnavigation">
+      <button class="nav-item active" data-page="home" type="button"><span class="nav-ico">⌂</span><span>Startseite</span></button>
+      <button class="nav-item" data-page="discover" type="button"><span class="nav-ico">◈</span><span>Entdecken</span></button>
+      <button class="nav-item" data-page="library" type="button"><span class="nav-ico">▣</span><span>Bibliothek</span><span class="nav-count" id="libraryCount">0</span></button>
+      <button class="nav-item" data-page="downloads" type="button"><span class="nav-ico">↓</span><span>Downloads</span></button>
+    </nav>
+    <div class="nav-heading extra">NOVALAB</div>
+    <nav aria-label="NovaLab">
+      <button class="nav-item" data-action="open-website" type="button"><span class="nav-ico">◎</span><span>Website</span><span class="external-mark">↗</span></button>
+      <button class="nav-item" data-action="open-discord" type="button"><span class="nav-ico">♧</span><span>Discord</span><span class="external-mark">↗</span></button>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="status-small"><span id="connectionDot" class="online-dot"></span><div><strong>NovaLab Services</strong><small id="connectionText">Katalog wird geladen</small></div></div>
+      <button class="nav-item" data-page="settings" type="button"><span class="nav-ico">⚙</span><span>Einstellungen</span></button>
+      <div class="sidebar-profile"><div class="profile-avatar">NL</div><div><strong>Willkommen!</strong><small>NovaLab Community</small></div><span class="profile-caret">⌄</span></div>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="topbar"><div class="topbar-drag"></div><div class="topbar-tools"><span class="top-label">NOVALAB STUDIOS</span><span class="divider-dot"></span><span class="top-beta">EARLY ACCESS</span></div><div class="window-controls"><button type="button" data-window="minimize" aria-label="Minimieren">―</button><button type="button" data-window="maximize" aria-label="Maximieren">▢</button><button type="button" class="close" data-window="close" aria-label="Schließen">×</button></div></div>
+    <div class="view-scroll" id="scrollArea">
+      <div class="page" id="page-home">
+        <header class="page-header"><div><div class="eyebrow"><span class="sparkle">✦</span> DEINE WELT. DEIN LAUNCHER.</div><h1>Willkommen bei <span>NovaLab.</span></h1><p>Entdecke, installiere und starte unsere digitalen Welten.</p></div><span class="header-date" id="todayDate"></span></header>
+        <section class="hero"><div class="hero-visual"><div class="aurora aurora-one"></div><div class="aurora aurora-two"></div><div class="planet planet-back"></div><div class="planet planet-front"><div class="planet-shine"></div></div><div class="halo halo-one"></div><div class="halo halo-two"></div><div class="star-field"></div></div><div class="hero-content"><span class="hero-kicker">✦ &nbsp; A NOVALAB ORIGINAL</span><div class="hero-title">BEYOND<br><em>THE ORDINARY.</em></div><p>Spiele, die noch entstehen. Ideen, die Wirklichkeit werden. Alles an einem Ort.</p><button class="primary-button" type="button" data-page="discover">Projekte entdecken <span>↗</span></button><div class="hero-caption">COMING SOON &nbsp; · &nbsp; NOVALAB GAME 01</div></div><div class="hero-counter">01 <span>/</span> 03</div></section>
+        <div class="section-title"><div><span class="eyebrow">UNSERE PROJEKTE</span><h2>Im Spotlight <span class="small-star">✦</span></h2></div><button class="text-button" type="button" data-page="discover">Alle entdecken <span>→</span></button></div>
+        <div id="featuredGrid" class="project-grid"></div>
+        <div class="below-grid"><div class="info-banner"><div class="info-icon">✧</div><div><strong>Built for what comes next.</strong><p>Deine NovaLab-Spielebibliothek wächst mit jedem neuen Release.</p></div><button class="text-button" type="button" data-page="library">Zur Bibliothek →</button></div></div>
+      </div>
+      <div class="page hidden" id="page-discover"><header class="page-header compact"><div><span class="eyebrow">NOVALAB / EXPLORE</span><h1>Entdecke <span>Neues.</span></h1><p>Unsere Spiele, Lernplattformen und kreativen Projekte.</p></div></header><div class="toolbar"><input id="searchInput" class="search" type="search" placeholder="Projekt suchen …" autocomplete="off" aria-label="Projekt suchen"><div class="filters" id="filters"><button type="button" data-filter="all" class="selected">Alle</button><button type="button" data-filter="game">Spiele</button><button type="button" data-filter="app">Apps</button><button type="button" data-filter="tool">Tools</button></div></div><div id="discoverGrid" class="project-grid larger"></div><div id="noResults" class="empty hidden">Keine passenden Projekte gefunden.</div></div>
+      <div class="page hidden" id="page-library"><header class="page-header compact"><div><span class="eyebrow">YOUR COLLECTION</span><h1>Deine <span>Bibliothek.</span></h1><p>Installierte NovaLab-Spiele sind hier jederzeit verfügbar.</p></div></header><div id="libraryGrid" class="project-grid larger"></div><div id="emptyLibrary" class="empty-state"><div class="empty-symbol">▣</div><h2>Deine Bibliothek wartet.</h2><p>Sobald ein NovaLab-Spiel veröffentlicht wurde, kannst du es hier installieren und starten.</p><button type="button" class="primary-button" data-page="discover">Projekte entdecken →</button></div></div>
+      <div class="page hidden" id="page-downloads"><header class="page-header compact"><div><span class="eyebrow">DOWNLOAD CENTER</span><h1>Deine <span>Downloads.</span></h1><p>Installationen und Updates im Überblick.</p></div></header><div class="panel"><div class="panel-heading"><div class="panel-icon">↓</div><div><h2>Aktuelle Aktivität</h2><p id="downloadDescription">Derzeit werden keine Spieldateien heruntergeladen.</p></div></div><div id="downloadProgressBox" class="hidden"><div class="progress-label"><strong id="downloadGame">Download</strong><span id="downloadPercent">0%</span></div><div class="progress-track"><div id="downloadBar" class="progress-fill"></div></div><p class="hint" id="downloadPhase"></p></div></div><div class="panel second-panel"><h2>So funktioniert's</h2><p>NovaLab veröffentlicht kompatible Spielpakete über GitHub Releases. Der Launcher prüft die SHA-256-Prüfsumme vor der Installation. Updates erscheinen automatisch im Katalog, sobald eine neue Spielversion freigegeben wird.</p></div></div>
+      <div class="page hidden" id="page-settings"><header class="page-header compact"><div><span class="eyebrow">YOUR EXPERIENCE</span><h1>Deine <span>Einstellungen.</span></h1><p>Alles, was du für deinen Launcher brauchst.</p></div></header><div class="panel"><div class="panel-heading"><div class="panel-icon">⚙</div><div><h2>Launcher-Updates</h2><p>Aktuelle Version: <strong id="appVersion">–</strong></p></div></div><div class="setting-row"><div><strong>Automatisch nach Updates suchen</strong><p>Beim Start und regelmäßig im Hintergrund prüfen.</p></div><label class="switch"><input id="autoUpdateCheck" type="checkbox"><span></span></label></div><div class="setting-row"><div><strong>Update-Status</strong><p id="updateDescription">Noch nicht geprüft.</p></div><button class="secondary-button" data-action="check-update" type="button">Jetzt prüfen</button></div><div class="update-actions"><button id="downloadUpdateBtn" class="primary-button hidden" data-action="download-update" type="button">Update herunterladen ↓</button><button id="restartUpdateBtn" class="primary-button hidden" data-action="restart-update" type="button">Neustarten & installieren ↻</button></div></div><div class="panel second-panel"><h2>Über NovaLab Launcher</h2><p>Der offizielle Desktop-Launcher von NovaLab Studios. Spielepakete bleiben lokal auf deinem Gerät gespeichert. Für Spielinstallationen wird kein NovaLab-Account benötigt.</p><div class="settings-links"><button class="text-button" type="button" data-action="open-website">NovaLab Website ↗</button><button class="text-button" type="button" data-action="open-discord">Support auf Discord ↗</button><button class="text-button" type="button" data-action="refresh">Katalog neu laden ↻</button></div></div></div>
+    </div>
+    <div class="bottom-bar"><div class="bottom-left"><span class="mini-spark">✦</span> <strong>NovaLab Launcher</strong><span class="bottom-version" id="bottomVersion">v0.1.0</span></div><div id="bottomStatus" class="bottom-status">Bereit für neue Abenteuer</div></div>
+  </main>
+</div>
+<div class="toast hidden" id="toast" role="alert"></div>
+<div class="modal-overlay hidden" id="confirmOverlay"><div class="confirm-modal"><span class="eyebrow">BESTÄTIGUNG</span><h2>Spiel deinstallieren?</h2><p id="confirmText">Die lokalen Dateien werden gelöscht.</p><div class="confirm-actions"><button id="cancelUninstall" class="secondary-button" type="button">Abbrechen</button><button id="confirmUninstall" class="danger-button" type="button">Deinstallieren</button></div></div></div>
+</body>
+</html>

@@ -1,0 +1,47 @@
+name: NovaLab Launcher — Windows Installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'launcher/**'
+      - '.github/workflows/launcher-windows.yml'
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: launcher
+    steps:
+      - name: Repository herunterladen
+        uses: actions/checkout@v4
+      - name: Node.js installieren
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Abhängigkeiten installieren
+        run: npm install --no-audit --no-fund
+      - name: Quellcode überprüfen
+        run: npm run check
+      - name: Windows-Installer erstellen (Vorschau)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        run: npm run build:win
+      - name: Windows-Release veröffentlichen
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: npm run release:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Test-Installer als Workflow-Artefakt hochladen
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: NovaLab-Launcher-Windows-Preview
+          path: launcher/dist/*.exe
+          if-no-files-found: error

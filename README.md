@@ -42,3 +42,12 @@ Bilder und Videos liegen im öffentlichen Storage-Bucket `novalab-site-media`. U
 - Verbesserte mobile Typografie, einheitliche Status-Chips, Button-Abstände, Fokusrahmen und responsive Projektübersicht.
 - Mobiles Menü schließt zusätzlich mit Escape, außerhalb des Menüs und beim Wechsel auf Desktop.
 - Das separate Supabase-Admin-Login sowie Projektgalerie, Video-Uploads und andere bestehende Funktionen bleiben erhalten.
+
+## NovaLab Games Launcher · Windows MVP
+
+Der Code der eigenständigen Desktop-App liegt unter `launcher/` (Electron). Für Windows wird ein NSIS-Installer per GitHub Actions erstellt. Auf `main` entstehen Preview-Installer als Workflow-Artifacts. Release-Tags `v<version>` erzeugen GitHub Releases mit `latest.yml` für das Desktop-Auto-Update.
+
+- Launcher-Downloadseite (zeigt nur echte verfügbare Releases): https://akraniss05.github.io/NovaLab-Website1/launcher/download.html
+- Windows-Build-Workflow: `.github/workflows/launcher-windows.yml`
+- Anleitung für Spielepakete, SHA-256 und Updates: `launcher/README.md`
+- Vor dem ersten erfolgreichen Windows-Release ist noch keine `.exe` verfügbar. Das erste NovaLab-Spiel befindet sich weiterhin in der Entwicklung.

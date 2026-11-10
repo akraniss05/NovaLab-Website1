@@ -1,0 +1,90 @@
+# NovaLab Games Launcher · Windows Desktop App
+
+Der **NovaLab Games Launcher** ist eine eigenständige, installierbare Electron-App (nicht bloß ein Website-Shortcut). Das Interface umfasst Startseite, Projektkatalog, Spielebibliothek, Downloads, Einstellungen und NovaLab-Links. Aktuell ist der Launcher ein **MVP für Windows x64**; macOS/Linux-Installer, Accounts, Multiplayer und Cloud-Saves sind noch nicht implementiert.
+
+## Funktionen
+
+- Eigenes Windows-Installer-Setup (`NovaLab-Launcher-Setup-<version>.exe`) über `electron-builder`/NSIS.
+- Installation, Update, Start und Deinstallation **freigegebener Windows-Spielpakete**.
+- Verifikation heruntergeladener ZIP-Dateien mit SHA-256 vor Entpacken/Installieren.
+- Katalog aus `launcher/catalog.json`: online von GitHub geladen, lokale Kopie als Offline-Fallback.
+- Lokale Bibliothek/Settings im Electron-App-Datenverzeichnis. Keine unnötige Registrierung.
+- Launcher-Auto-Update über **GitHub Releases** (`electron-updater`) inklusive Update-Download und Neustart-Button.
+- Sicherheitsgrenzen: Context Isolation, Sandboxing, keine Node APIs im Renderer, strikt begrenzte IPC-Schnittstelle, HTTPS-Link-Whitelist.
+
+**Ehrlicher Projektstatus:** Noch ist kein spielbares NovaLab-Spiel veröffentlicht. Die Game-Karte zeigt deshalb **keinen fiktiven Installieren-Button**. Installationen werden verfügbar, sobald ein gültiges Spiel-Release samt SHA-256 eingetragen wird.
+
+## Lokal starten (Windows)
+
+Voraussetzung: Node.js 24 und npm.
+
+```powershell
+cd launcher
+npm install
+npm run check
+npm start
+```
+
+Testinstaller lokal bauen:
+
+```powershell
+npm run build:win
+```
+
+Den Installer findest du anschließend unter `launcher/dist/`.
+
+## Automatischer Windows-Build und Download
+
+Die GitHub-Action `.github/workflows/launcher-windows.yml` baut bei Änderungen in `launcher/` automatisch einen Preview-Installer. Unter **GitHub → Actions → NovaLab Launcher — Windows Installer → letzter erfolgreicher Lauf → Artifacts** kannst du das ZIP mit der `.exe` herunterladen.
+
+Für einen **öffentlichen Release-Download mit Autoupdates**:
+
+1. Version in `launcher/package.json` erhöhen (z. B. `0.1.1`).
+2. Commit der Änderung auf `main` pushen.
+3. Passenden Git-Tag erstellen und pushen (`v0.1.1`; die Versionsnummer muss übereinstimmen).
+4. Der Tag startet den Windows-Workflow; `electron-builder` veröffentlicht den Installer **samt `latest.yml`** bei [GitHub Releases](https://github.com/akraniss05/NovaLab-Website1/releases).
+5. Die Downloadseite `https://akraniss05.github.io/NovaLab-Website1/launcher/download.html` führt zur aktuellen Version.
+
+Beispiel (nach Änderungen auf `main`):
+
+```bash
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+**Hinweise:** Der erste Release (`v0.1.0`) ist erst dann downloadbar, wenn der Tag erfolgreich gebaut und die Assets hochgeladen wurden. GitHub Pages baut **keine Windows-EXE**; dafür wird der Actions-Windows-Runner verwendet. Ohne Signatur kann Windows SmartScreen bei unvertrauten Installern warnen. Ein Code-Signing-Zertifikat ist für vertrauenswürdige Distribution empfehlenswert. Keine Adminrechte für die normale Per-User-Installation erforderlich. Für Produktivbetrieb Abhängigkeiten per Lockfile fixieren und automatisierte Tests erweitern.
+
+## Spiele im Launcher veröffentlichen
+
+1. Spiel als ZIP paketieren. In der ZIP liegt z. B. die Datei `NovaLabGame.exe` (und alle nötigen Assets).
+2. Die ZIP als Asset in einem **GitHub Release eines Repositories von `akraniss05`** veröffentlichen.
+3. SHA-256 der **fertigen ZIP-Datei** berechnen, z. B. unter PowerShell:
+
+```powershell
+(Get-FileHash .\NovaLabGame-Windows.zip -Algorithm SHA256).Hash.ToLower()
+```
+
+4. In `launcher/catalog.json` beim Spiele-Eintrag ein `release`-Objekt ergänzen:
+
+```json
+"release": {
+  "version": "1.0.0",
+  "url": "https://github.com/akraniss05/NovaLab-Game1/releases/download/v1.0.0/NovaLabGame-Windows.zip",
+  "sha256": "HIER_DEN_ECHTEN_64_STELLIGEN_SHA256_HASH_EINTRAGEN",
+  "entry": "NovaLabGame.exe"
+}
+```
+
+5. Die geänderte Katalogdatei auf `main` veröffentlichen. Beim nächsten Katalogladen erscheint „Installieren“, bzw. „Update“, falls eine ältere Version installiert ist. Für neue Spiele kein Launcher-Release notwendig. Der Spiele-Installer läuft derzeit nur unter Windows.
+
+**Wichtig:** Der `sha256`-Wert muss ein echter, 64-stelliger Hex-Hash sein. Ohne gültigen Hash wird das Release bewusst nicht als Download angeboten. Der `entry`-Pfad muss relativ zur ZIP-Wurzel sein. Gib nur von euch autorisierte und vertrauenswürdige Releases frei, denn installierte Spiele werden als EXE gestartet. Das schützt vor versehentlich korrupten Downloads, ersetzt aber keine signierten Releases oder Sicherheitsprüfungen. Manifeste sollten später zusätzlich signiert werden.
+
+## Architektur
+
+- `src/main.cjs` — Hauptprozess, Dateisystem, Installation, IPC, Autoupdate
+- `src/preload.cjs` — begrenzte Bridge in den Renderer
+- `src/renderer/` — lokale HTML/CSS/JS-Oberfläche
+- `catalog.json` — editierbarer Projektkatalog (über GitHub Pages synchronisiert)
+- `download.html` — öffentliche Landingpage mit GitHub Release-Check
+
+Der Quellcode liegt bewusst **separat neben der bisherigen NovaLab-Website**. Admin-Backend und vorhandene Website-Dateien werden nicht ersetzt.

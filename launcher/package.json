@@ -1,0 +1,49 @@
+{
+  "name": "novalab-launcher",
+  "productName": "NovaLab Launcher",
+  "version": "0.1.0",
+  "description": "Der offizielle Desktop-Launcher für NovaLab Studios",
+  "main": "src/main.cjs",
+  "private": true,
+  "author": "NovaLab Studios",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check src/main.cjs && node --check src/preload.cjs && node --check src/renderer/app.js",
+    "build:win": "electron-builder --win nsis --publish never",
+    "release:win": "electron-builder --win nsis --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.12",
+    "extract-zip": "2.0.1"
+  },
+  "devDependencies": {
+    "electron": "45.2.3",
+    "electron-builder": "26.18.1"
+  },
+  "build": {
+    "appId": "com.novalabstudios.launcher",
+    "productName": "NovaLab Launcher",
+    "directories": { "output": "dist" },
+    "files": ["src/**/*", "catalog.json", "package.json"],
+    "asar": true,
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "artifactName": "NovaLab-Launcher-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "NovaLab Launcher"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "akraniss05",
+      "repo": "NovaLab-Website1",
+      "releaseType": "release"
+    }
+  }
+}
