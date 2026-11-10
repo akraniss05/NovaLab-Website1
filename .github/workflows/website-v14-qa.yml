@@ -1,0 +1,58 @@
+name: NovaLab Website v14 - Layout and Browser QA
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'app.js'
+      - 'styles.css'
+      - 'studio-v14.css'
+      - 'data/projects.json'
+      - 'assets/site-*.svg'
+      - 'scripts/qa_website.py'
+      - 'scripts/qa_browser.py'
+      - '.github/workflows/website-v14-qa.yml'
+permissions:
+  contents: write
+jobs:
+  site-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Statische Webseiten-Prüfung und JavaScript-Syntax
+        run: |
+          node --check app.js
+          python3 scripts/qa_website.py
+      - name: Chromium Browser für echte Screenshots installieren
+        run: |
+          python3 -m pip install --disable-pip-version-check playwright
+          python3 -m playwright install --with-deps chromium
+      - name: Desktop & Mobile UI und Navigation prüfen
+        run: |
+          python3 -m http.server 4173 > /tmp/novalab-http.log 2>&1 &
+          pid=$!
+          trap 'kill $pid || true' EXIT
+          sleep 2
+          python3 scripts/qa_browser.py
+      - name: Bilder als Workflow-Artefakt veröffentlichen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NovaLab-Website-v14-Desktop-Mobile-Screenshots
+          path: assets/previews/*.png
+          if-no-files-found: warn
+      - name: Echte Screenshots im Repo speichern
+        if: success() && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/previews/*.png
+          if ! git diff --cached --quiet; then
+            git commit -m "docs(site): real Chromium desktop and mobile screenshots [skip ci]"
+            git push origin HEAD:main
+          fi
