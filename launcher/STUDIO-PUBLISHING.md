@@ -55,3 +55,5 @@ Status: Reale Implementierung mit Supabase-Backend; Windows-Build und API-Smoke-
 
 ## Datenverträglichkeit
 Alle neuen Datenbankänderungen sind additiv. Bestehende Accounts, Spiele, Speicherstände und Launcher-Daten bleiben erhalten; der alte Community-Katalog ist weiterhin erreichbar.
+
+Release-Kanal: v0.6.0 Early Access. Die Windows-Version wird über GitHub Actions automatisiert gebaut und veröffentlicht.
