@@ -107,3 +107,37 @@ test('cancel deletes partial bytes and removes task', async t=>{
   await waitFor(()=>dl.list().length===0);
   assert.equal(dl.list().length,0);
 });
+
+test('graceful launcher shutdown keeps partial download queued, not failed',async t=>{
+  const f=await fixture(t,{chunkDelay:7});
+  const dl=manager(f,async()=>{});await dl.init();await dl.enqueue(game(f));
+  await waitFor(()=>dl.list()[0].bytes>30000);
+  await dl.close();
+  assert.equal(dl.list()[0].phase,'queued');
+  const reboot=manager(f,async()=>{});t.after(()=>reboot.close());
+  await reboot.init();
+  await waitFor(()=>reboot.list()[0].phase==='complete',12000);
+  assert.ok(f.headersSeen.some(x=>x?.startsWith('bytes=')),'expected HTTP range resume');
+});
+test('updated digest for same version cannot silently reuse stale partial bytes',async t=>{
+  const f=await fixture(t,{chunkDelay:7});
+  const dl=manager(f,async()=>{});t.after(()=>dl.close());
+  await dl.init();await dl.enqueue(game(f));
+  await waitFor(()=>dl.list()[0].bytes>30000);
+  await dl.pause('orbit-dash');
+  await waitFor(()=>dl.active===null);
+  const badHash='a'.repeat(64);
+  await dl.enqueue(game(f,'orbit-dash',badHash));
+  await waitFor(()=>dl.list()[0].phase==='failed',12000);
+  assert.match(dl.list()[0].error,/SHA-256/);
+  assert.equal(dl.list()[0].bytes,0);
+});
+test('an empty saved queue starts without a download request',async t=>{
+  const f=await fixture(t);
+  const dl=manager(f,async()=>{throw new Error('must not install')});
+  t.after(()=>dl.close());
+  await dl.init();
+  assert.deepEqual(dl.list(),[]);
+  assert.equal(dl.active,null);
+  assert.deepEqual(f.headersSeen,[]);
+});
