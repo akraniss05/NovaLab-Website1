@@ -1,7 +1,6 @@
 "use strict";
 (function(){
-const OWNER="akraniss05",REPO="NovaLab-Website1",DATA_PATH="data/projects.json";
-const BASE="https://api.github.com/repos/"+OWNER+"/"+REPO+"/contents/";
+const API="https://ekgxotvvhkmeuxvuwbei.supabase.co/functions/v1/novalab-site-api";
 const DISCORD="https://discord.gg/SZhYa6Nnmy";
 const ROUTES=["home","projects","learning","code","music","games","launcher","team","support","admin"];
 const CAT={coding:"Coding",music:"Musik",games:"Games",tools:"Tools"};
@@ -31,9 +30,9 @@ const DEFAULTS=[
 {id:"novalab-game1",title:"Unser erstes NovaLab-Game",summary:"Ein eigenes Spiel ist in Planung. Hier entsteht unser nächstes großes Gaming-Projekt.",description:"Das erste eigene Spiel von NovaLab Studios befindet sich in der Konzeptphase. Wir arbeiten an Ideen, Technik und einem ersten Prototyp. Genre, Umfang und Release-Datum sind noch nicht festgelegt; eine spielbare Version gibt es aktuell nicht.",category:"games",status:"Konzeptphase",link:"#games",tags:["Eigenentwicklung","Geplant"],featured:true},
 {id:"novalab-launcher",title:"NovaLab Launcher",summary:"Unsere Vision eines eigenen Launchers für Spielebibliothek, Downloads und Updates.",description:"Der Launcher soll künftig die Spiele von NovaLab Studios bündeln. Spiele finden, installieren, starten und aktualisieren – alles in einer Desktop-App. Ein Download steht noch nicht zur Verfügung.",category:"games",status:"Geplant",link:"#launcher",tags:["Desktop","Launcher"],featured:false}
 ];
-let projects=DEFAULTS.map(normalize),filter="all",query="",selectedId="",pendingFiles=new Map(),token="",jsonSha="",dirty=false,temporaryUrls=[];
+let projects=DEFAULTS.map(normalize),filter="all",query="",selectedId="",pendingFiles=new Map(),sessionToken=sessionStorage.getItem("novalab_site_session")||"",dirty=false,temporaryUrls=[];
 function state(msg,error){const e=$("adminStatus");if(!e)return;e.textContent=msg;e.style.color=error?"#ff98ad":"#b8decf"}
-function authState(msg,error){const e=$("authStatus");if(!e)return;e.textContent=msg;e.style.color=error?"#ff98ad":"#b8decf"}
+function authState(msg,error){const e=$("loginStatus");if(!e)return;e.textContent=msg;e.style.color=error?"#ff98ad":"#b8decf"}
 function makeLink(label,href,cls){let a=el("a",cls,label),safe=safeLink(href,true);a.href=safe||"#projects";if(safe.startsWith("https://")){a.target="_blank";a.rel="noopener noreferrer"}return a}
 function poster(p,cls){const wrap=el("div","poster "+p.category+(cls?" "+cls:""));if(p.cover){const img=el("img");img.src=p.cover;img.alt="Projektbild: "+p.title;img.loading="lazy";img.onerror=()=>{img.remove();wrap.prepend(icon(p.category,"poster-icon"))};wrap.append(img)}else wrap.append(icon(p.category,"poster-icon"));wrap.append(el("span","poster-status",p.status));return wrap}
 function projectCard(p){const card=el("article","project-card");const link=makeLink("","#project/"+p.id,"poster-link");link.append(poster(p));card.append(link);const body=el("div","card-body");body.append(el("span","card-meta",CAT[p.category]+" / NOVALAB"),el("h3","",p.title),el("p","",p.summary));const bottom=el("div","card-bottom");bottom.append(el("span","card-tags",(p.tags||[]).slice(0,2).join(" · ")));const go=makeLink("","#project/"+p.id,"icon-circle");go.setAttribute("aria-label","Details zu "+p.title);go.append(icon("arrow"));bottom.append(go);body.append(bottom);card.append(body);return card}
@@ -60,11 +59,13 @@ else{panel.append(makeLink("Projektvideo öffnen ↗",s,"btn btn-ghost"))}
 panel.append(el("p","","Projektvideo"));return panel}
 function route(){let hash=decodeURIComponent(location.hash.slice(1)||"home").replace(/[^a-z0-9/-]/gi,"");let page=hash.startsWith("project/")?"project":ROUTES.includes(hash)?hash:"home";document.querySelectorAll(".page").forEach(e=>{e.hidden=e.dataset.page!==page});document.querySelectorAll(".nav-link").forEach(e=>{let is=(e.dataset.go===page)||(page==="code"||page==="music"?e.dataset.go==="learning":page==="project"&&e.dataset.go==="projects");e.classList.toggle("active",is);if(is)e.setAttribute("aria-current","page");else e.removeAttribute("aria-current")});
 if(page==="project")renderDetail(hash.slice(8));$("mainNav").classList.remove("open");$("mobileMenu").setAttribute("aria-expanded","false");window.scrollTo(0,0);document.title=(page==="home"?"NovaLab Studios":page==="project"?($("detailTitle").textContent+" | NovaLab Studios"):(page.charAt(0).toUpperCase()+page.slice(1))+" | NovaLab Studios")}
-async function loadData(){try{const r=await fetch("./data/projects.json?v=5",{cache:"no-store"});if(!r.ok)throw Error("HTTP "+r.status);const a=await r.json();if(!Array.isArray(a))throw Error("Ungültige Projektdaten");projects=a.map(normalize)}catch(e){console.info("Projektkatalog wird mit Standarddaten angezeigt:",e)}renderProjects();if(location.hash.startsWith("#project/"))route()}
+async function loadData(){let loaded=false;try{const result=await apiRequest("/projects");if(!Array.isArray(result.projects))throw Error("Invalid projects");projects=result.projects.map(normalize);loaded=true}catch(e){console.info("NovaLab backend unavailable, using fallback",e)}
+if(!loaded){try{const r=await fetch("./data/projects.json?v=10",{cache:"no-store"});if(!r.ok)throw Error("HTTP "+r.status);const data=await r.json();if(!Array.isArray(data))throw Error("Invalid JSON");projects=data.map(normalize)}catch(e){console.info("Using default projects",e)}}
+renderProjects();if(location.hash.startsWith("#project/"))route()}
 function renderAdminList(){const root=$("adminRows");root.replaceChildren();projects.forEach(p=>{const row=el("div","admin-row");const label=el("div");label.append(el("b","",p.title),el("small","",CAT[p.category]+" · "+p.status));const acts=el("div","admin-row-actions");let edit=el("button","","Bearbeiten");edit.type="button";edit.onclick=()=>editProject(p.id);let del=el("button","","Löschen");del.type="button";del.onclick=()=>{if(confirm("Projekt „"+p.title+"“ wirklich aus der Liste entfernen?")){projects=projects.filter(x=>x.id!==p.id);pendingFiles.delete(p.id);dirty=true;renderProjects();state("Löschung vorgemerkt – noch nicht veröffentlicht.")}};acts.append(edit,del);row.append(label,acts);root.append(row)})}
 function editProject(id){const p=projects.find(x=>x.id===id);if(!p)return;selectedId=id;$("fId").value=id;$("fTitle").value=p.title;$("fSummary").value=p.summary;$("fDescription").value=p.description;$("fCategory").value=p.category;$("fStatus").value=p.status;$("fLink").value=p.link;$("fTags").value=p.tags.join(", ");$("fCoverUrl").value=p.cover;$("fGallery").value=p.gallery.join("\n");$("fVideoUrl").value=p.video;$("fFeatured").checked=p.featured;
 for(const id of ["fCoverFile","fGalleryFiles","fVideoFile"])$(id).value="";clearMediaPreviews();$("formTitle").textContent="Projekt bearbeiten";state("Du bearbeitest „"+p.title+"“. Änderungen werden erst nach dem Veröffentlichen öffentlich.");$("editorCard").scrollIntoView({behavior:"smooth",block:"start"})}
-function newProject(){selectedId="";$("projectForm").reset();clearMediaPreviews();$("fId").value="";$("fFeatured").checked=true;$("formTitle").textContent="Projekt hinzufügen";state("Neues Projekt erstellen und anschließend auf GitHub veröffentlichen.");$("editorCard").scrollIntoView({behavior:"smooth",block:"start"})}
+function newProject(){selectedId="";$("projectForm").reset();clearMediaPreviews();$("fId").value="";$("fFeatured").checked=true;$("formTitle").textContent="Projekt hinzufügen";state("Neues Projekt erstellen und anschließend veröffentlichen.");$("editorCard").scrollIntoView({behavior:"smooth",block:"start"})}
 function formError(msg){state(msg,true);return false}
 function saveDraft(e){e.preventDefault();const title=text($("fTitle").value,90),summary=text($("fSummary").value,250);if(!title||!summary)return formError("Titel und Kurzbeschreibung fehlen.");
 let link=text($("fLink").value);if(link&&!safeLink(link,true))return formError("Projekt-Link: bitte eine HTTPS-URL oder #code, #music etc. eintragen.");
@@ -76,17 +77,67 @@ const item=normalize({id,title,summary,details:$("fDescription").value||summary,
 const files={cover:$("fCoverFile").files[0]||null,gallery:[...$("fGalleryFiles").files],video:$("fVideoFile").files[0]||null};
 if(files.cover||files.gallery.length||files.video){for(const file of [files.cover,...files.gallery,files.video].filter(Boolean)){const isImage=file.type.startsWith("image/"),isVideo=file.type.startsWith("video/");if(!isImage&&!isVideo)return formError("Nur Bilddateien oder MP4/WebM-Videos hochladen.");if(file.size>(isImage?4:12)*1024*1024)return formError("Datei zu groß: Bilder max. 4 MB, Videos max. 12 MB. Größere Videos bitte auf YouTube bereitstellen.");}
 pendingFiles.set(id,files)}
-if(old)projects=projects.map(x=>x.id===id?item:x);else projects.push(item);dirty=true;renderProjects();selectedId=id;$("fId").value=id;$("formTitle").textContent="Projekt bearbeiten";for(const field of ["fCoverFile","fGalleryFiles","fVideoFile"])$(field).value="";clearMediaPreviews();state("Projekt übernommen. Bilder und Videos werden bei „Auf Website veröffentlichen“ hochgeladen.");return false}
-function authHeaders(){return {"Accept":"application/vnd.github+json","Authorization":"Bearer "+token,"X-GitHub-Api-Version":"2022-11-28"}}
-async function connect(){const value=$("pat").value.trim();if(!value){authState("Bitte einen GitHub Fine-grained Token eingeben.",true);return}authState("Verbindung wird geprüft …");try{const r=await fetch(BASE+DATA_PATH+"?ref=main",{headers:{"Accept":"application/vnd.github+json","Authorization":"Bearer "+value,"X-GitHub-Api-Version":"2022-11-28"},cache:"no-store"});if(!r.ok)throw Error("GitHub API "+r.status+" – prüfe Token und Repository-Berechtigungen.");const j=await r.json();token=value;jsonSha=j.sha;$("pat").value="";authState("Verbunden. Änderungen können mit deinem Repository-Zugriff veröffentlicht werden.")}catch(e){token="";authState(e.message,true)}}
-function disconnect(){token="";jsonSha="";$("pat").value="";authState("Verbindung getrennt. Der Token wurde nicht gespeichert.")}
-function readBase64(file){return new Promise((resolve,reject)=>{let reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]);reader.onerror=()=>reject(Error("Datei konnte nicht gelesen werden."));reader.readAsDataURL(file)})}
-async function githubPut(path,b64,message,sha){const body={message,content:b64,branch:"main"};if(sha)body.sha=sha;const r=await fetch(BASE+path,{method:"PUT",headers:{...authHeaders(),"Content-Type":"application/json"},body:JSON.stringify(body)});if(!r.ok){const j=await r.json().catch(()=>({}));throw Error("GitHub "+r.status+": "+(j.message||"Datei konnte nicht hochgeladen werden"))}return r.json()}
-async function upload(file,id,type){let ext=file.name.toLowerCase().split(".").pop();if(!["png","jpg","jpeg","webp","mp4","webm"].includes(ext))throw Error("Nicht unterstützte Datei: "+file.name);if(type==="video"&&!["mp4","webm"].includes(ext))throw Error("Video muss MP4 oder WebM sein.");if(type!=="video"&&!["png","jpg","jpeg","webp"].includes(ext))throw Error("Bilder müssen PNG, JPG oder WebP sein.");state("Übertrage "+file.name+" ("+Math.ceil(file.size/1024)+" KB) nach GitHub …");const path="assets/uploads/"+id+"-"+type+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,7)+"."+ext;await githubPut(path,await readBase64(file),"Upload project media: "+file.name);return "./"+path}
-function encodeUTF8(s){const bytes=new TextEncoder().encode(s);let binary="";for(let i=0;i<bytes.length;i+=32768)binary+=String.fromCharCode(...bytes.subarray(i,i+32768));return btoa(binary)}
-async function publish(){if(!token||!jsonSha){state("Bitte zuerst einen GitHub-Token verbinden. Änderungen sind noch nicht öffentlich.",true);return}const btn=$("publish");btn.disabled=true;try{for(const [id,files] of pendingFiles){let p=projects.find(x=>x.id===id);if(!p)continue;if(files.cover)p.cover=await upload(files.cover,id,"cover");for(const file of files.gallery)p.gallery.push(await upload(file,id,"gallery"));if(files.video)p.video=await upload(files.video,id,"video");pendingFiles.delete(id)}
-const body=JSON.stringify(projects,null,2)+"\n";state("Schreibe Projektkatalog auf GitHub …");const response=await githubPut(DATA_PATH,encodeUTF8(body),"Publish NovaLab Studio project catalog and media",jsonSha);jsonSha=response.content.sha;dirty=false;state("Veröffentlicht! GitHub Pages übernimmt die aktualisierten Projektinformationen mit dem nächsten Deployment.");renderProjects()}catch(e){state("Veröffentlichung fehlgeschlagen: "+e.message+" – Änderungen bleiben in dieser Sitzung erhalten.",true)}finally{btn.disabled=false}}
-async function reload(){if(dirty&&!confirm("Nicht veröffentlichte Änderungen verwerfen und aktuelle öffentliche Daten laden?"))return;dirty=false;pendingFiles.clear();await loadData();state("Öffentliche Projektdaten neu geladen.")}
+if(old)projects=projects.map(x=>x.id===id?item:x);else projects.push(item);dirty=true;renderProjects();selectedId=id;$("fId").value=id;$("formTitle").textContent="Projekt bearbeiten";for(const field of ["fCoverFile","fGalleryFiles","fVideoFile"])$(field).value="";clearMediaPreviews();state("Projekt vorgemerkt. Zum Übernehmen auf „Auf Website veröffentlichen“ klicken.");return false}
+
+async function apiRequest(path,opts={}){
+ const method=opts.method||"GET",body=opts.body;
+ const headers={};if(body!==undefined)headers["Content-Type"]="application/json";
+ if(opts.authenticated){if(!sessionToken)throw Error("Nicht angemeldet.");headers["Authorization"]="Bearer "+sessionToken}
+ let response;try{response=await fetch(API+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body),cache:"no-store"})}catch{throw Error("Backend nicht erreichbar. Bitte später erneut versuchen.")}
+ const result=await response.json().catch(()=>null);
+ if(!result)throw Error("Ungültige Serverantwort.");
+ if(!response.ok){if(response.status===401&&opts.authenticated)clearSession();throw Error(result.error||("HTTP "+response.status))}
+ return result;
+}
+function clearSession(){
+ sessionToken="";sessionStorage.removeItem("novalab_site_session");
+ $("adminLogin").hidden=false;$("adminDashboard").hidden=true;$("activeAdmin").textContent="Admin";
+}
+function showDashboard(username){
+ $("adminLogin").hidden=true;$("adminDashboard").hidden=false;$("activeAdmin").textContent=username;
+ $("dashboardProjects").textContent=String(projects.length);
+}
+async function checkSession(){
+ if(!sessionToken){clearSession();return}
+ try{const r=await apiRequest("/me",{authenticated:true});showDashboard(r.username)}catch{clearSession()}
+}
+async function handleLogin(event){
+ event.preventDefault();const username=$("loginUsername").value.trim(),password=$("loginPassword").value;
+ $("loginPassword").value="";const button=$("loginButton");button.disabled=true;authState("Anmeldung wird geprüft …");
+ try{const result=await apiRequest("/login",{method:"POST",body:{username,password}});sessionToken=result.token;sessionStorage.setItem("novalab_site_session",sessionToken);showDashboard(result.username);authState("");state("Anmeldung erfolgreich. Du kannst Projekte verwalten.")}
+ catch(e){authState(e.message,true)}finally{button.disabled=false}
+}
+async function logout(){
+ try{if(sessionToken)await apiRequest("/logout",{method:"POST",body:{},authenticated:true})}catch{}
+ clearSession();authState("Du wurdest abgemeldet.");
+}
+function readBase64(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]);reader.onerror=()=>reject(Error("Datei konnte nicht gelesen werden."));reader.readAsDataURL(file)})}
+async function upload(file){
+ state("Lade "+file.name+" hoch …");
+ const result=await apiRequest("/media",{method:"POST",authenticated:true,body:{base64:await readBase64(file),mime:file.type}});
+ return result.url;
+}
+async function publish(){
+ if(!sessionToken){state("Bitte zuerst als Administrator anmelden.",true);return}
+ const button=$("publish");button.disabled=true;
+ try{
+  for(const [id,files] of pendingFiles){
+   const item=projects.find(x=>x.id===id);if(!item)continue;
+   if(files.cover)item.cover=await upload(files.cover);
+   for(const file of files.gallery)item.gallery.push(await upload(file));
+   if(files.video)item.video=await upload(files.video);
+   pendingFiles.delete(id);
+  }
+  state("Projektinformationen werden veröffentlicht …");
+  const result=await apiRequest("/projects",{method:"PUT",authenticated:true,body:{projects}});
+  dirty=false;await loadData();showDashboard($("activeAdmin").textContent);
+  state("Erfolgreich veröffentlicht: "+result.count+" Projekte. Änderungen sind direkt auf dem Backend verfügbar.");
+ }catch(e){state("Veröffentlichung fehlgeschlagen: "+e.message,true)}finally{button.disabled=false}
+}
+async function reload(){
+ if(dirty&&!confirm("Nicht gespeicherte Änderungen verwerfen?"))return;
+ dirty=false;pendingFiles.clear();await loadData();state("Öffentliche Projekte neu geladen.");
+}
 function clearMediaPreviews(){temporaryUrls.forEach(url=>URL.revokeObjectURL(url));temporaryUrls=[];$("coverPreview").replaceChildren();$("galleryPreview").replaceChildren();$("videoPreview").textContent=""}
 function showMediaPreviews(){clearMediaPreviews();let cover=$("fCoverFile").files[0];if(cover){const img=el("img");const src=URL.createObjectURL(cover);temporaryUrls.push(src);img.src=src;img.alt="Vorschau des Titelbildes";$("coverPreview").append(img)}
 for(const file of [...$("fGalleryFiles").files]){const img=el("img"),src=URL.createObjectURL(file);temporaryUrls.push(src);img.src=src;img.alt="Galeriebild-Vorschau";$("galleryPreview").append(img)}
@@ -95,7 +146,7 @@ for(const name of ["fCoverFile","fGalleryFiles","fVideoFile"])$(name).addEventLi
 $("mobileMenu").onclick=()=>{const menu=$("mainNav");const open=menu.classList.toggle("open");$("mobileMenu").setAttribute("aria-expanded",String(open))};
 $("projectSearch").oninput=e=>{query=e.target.value.trim().toLowerCase();renderProjects()};
 $("filters").onclick=e=>{const b=e.target.closest("[data-category]");if(!b)return;filter=b.dataset.category;document.querySelectorAll("[data-category]").forEach(x=>x.classList.toggle("active",x===b));renderProjects()};
-$("projectForm").addEventListener("submit",saveDraft);$("newProject").onclick=newProject;$("connect").onclick=connect;$("disconnect").onclick=disconnect;$("publish").onclick=publish;$("reload").onclick=reload;
+$("projectForm").addEventListener("submit",saveDraft);$("newProject").onclick=newProject;$("publish").onclick=publish;$("reload").onclick=reload;$("loginForm").addEventListener("submit",handleLogin);$("signOut").onclick=logout;
 $("discoverNovaLab").addEventListener("click",()=>document.getElementById("introNovaLab").scrollIntoView({behavior:"smooth",block:"start"}));
-window.addEventListener("hashchange",route);$("year").textContent=new Date().getFullYear();renderProjects();route();loadData();
+window.addEventListener("hashchange",route);$("year").textContent=new Date().getFullYear();renderProjects();route();loadData().then(checkSession);
 })();
