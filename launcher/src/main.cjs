@@ -110,8 +110,8 @@ function normalizeCatalog(raw) {
     developer: String(item.developer||'NovaLab Studios').slice(0,80),
     publisher: String(item.publisher||'NovaLab Studios').slice(0,80),
     featured: item.featured===true,
-    cover: item.id==='novalab-code' && item.cover==='https://akraniss05.github.io/NovaLab-Website1/launcher/assets/novalab-code-cover.svg' ? item.cover : cleanStudioMedia(item.cover),
-    banner: item.id==='novalab-code' && item.banner==='https://akraniss05.github.io/NovaLab-Website1/launcher/assets/novalab-code-banner.svg' ? item.banner : cleanStudioMedia(item.banner),
+    cover: (item.id==='novalab-code'||item.id==='community-novalab-code') && item.cover==='https://akraniss05.github.io/NovaLab-Website1/launcher/assets/novalab-code-cover.svg' ? item.cover : cleanStudioMedia(item.cover),
+    banner: (item.id==='novalab-code'||item.id==='community-novalab-code') && item.banner==='https://akraniss05.github.io/NovaLab-Website1/launcher/assets/novalab-code-banner.svg' ? item.banner : cleanStudioMedia(item.banner),
     screenshots: (Array.isArray(item.screenshots)?item.screenshots:[]).slice(0,20).map(cleanStudioMedia).filter(Boolean),
     videos: (Array.isArray(item.videos)?item.videos:[]).slice(0,8).map(cleanStudioMedia).filter(Boolean),
     requirements: { minimum: String(item.requirements?.minimum||'').slice(0,1000), recommended: String(item.requirements?.recommended||'').slice(0,1000) },
@@ -371,6 +371,7 @@ async function loadCatalog() {
   try {
     const studio=await studioRequest('catalog',{auth:false});
     if(Array.isArray(studio.games)){
+      if(studio.games.some(g=>g.id==='community-novalab-code')) catalog=catalog.filter(g=>g.id!=='novalab-code');
       catalog=normalizeCatalog([...studio.games,...catalog]);
       const exclusions=new Set(Array.isArray(studio.excludedIds)?studio.excludedIds:[]);
       catalog=catalog.filter(g=>!exclusions.has(g.id));
