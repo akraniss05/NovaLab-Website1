@@ -86,7 +86,7 @@ async function apiRequest(path,opts={}){
  let response;try{response=await fetch(API+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body),cache:"no-store"})}catch{throw Error("Backend nicht erreichbar. Bitte später erneut versuchen.")}
  const result=await response.json().catch(()=>null);
  if(!result)throw Error("Ungültige Serverantwort.");
- if(!response.ok){if(response.status===401&&opts.authenticated)clearSession();throw Error(result.error||("HTTP "+response.status))}
+ if(!response.ok){if(response.status===401&&opts.authenticated&&path!=="/change-password")clearSession();throw Error(result.error||("HTTP "+response.status))}
  return result;
 }
 function clearSession(){
@@ -146,7 +146,23 @@ for(const name of ["fCoverFile","fGalleryFiles","fVideoFile"])$(name).addEventLi
 $("mobileMenu").onclick=()=>{const menu=$("mainNav");const open=menu.classList.toggle("open");$("mobileMenu").setAttribute("aria-expanded",String(open))};
 $("projectSearch").oninput=e=>{query=e.target.value.trim().toLowerCase();renderProjects()};
 $("filters").onclick=e=>{const b=e.target.closest("[data-category]");if(!b)return;filter=b.dataset.category;document.querySelectorAll("[data-category]").forEach(x=>x.classList.toggle("active",x===b));renderProjects()};
-$("projectForm").addEventListener("submit",saveDraft);$("newProject").onclick=newProject;$("publish").onclick=publish;$("reload").onclick=reload;$("loginForm").addEventListener("submit",handleLogin);$("signOut").onclick=logout;
+$("projectForm").addEventListener("submit",saveDraft);$("newProject").onclick=newProject;$("publish").onclick=publish;$("reload").onclick=reload;$("loginForm").addEventListener("submit",handleLogin);$("signOut").onclick=logout;$("passwordForm").addEventListener("submit",handlePasswordChange);
 $("discoverNovaLab").addEventListener("click",()=>document.getElementById("introNovaLab").scrollIntoView({behavior:"smooth",block:"start"}));
+
+async function handlePasswordChange(event){
+ event.preventDefault();
+ const currentPassword=$("currentAdminPassword").value;
+ const newPassword=$("newAdminPassword").value;
+ const repeatPassword=$("repeatAdminPassword").value;
+ const feedback=$("passwordStatus"),button=$("changePasswordButton");
+ if(newPassword!==repeatPassword){feedback.textContent="Die neuen Passwörter stimmen nicht überein.";return}
+ if(newPassword.length<12){feedback.textContent="Bitte mindestens 12 Zeichen verwenden.";return}
+ button.disabled=true;feedback.textContent="Passwort wird aktualisiert …";
+ try{
+  await apiRequest("/change-password",{method:"POST",authenticated:true,body:{currentPassword,newPassword}});
+  $("passwordForm").reset();clearSession();authState("Passwort geändert. Bitte mit dem neuen Passwort erneut anmelden.");
+  window.scrollTo(0,0);
+ }catch(e){feedback.textContent=e.message}finally{button.disabled=false}
+}
 window.addEventListener("hashchange",route);$("year").textContent=new Date().getFullYear();renderProjects();route();loadData().then(checkSession);
 })();

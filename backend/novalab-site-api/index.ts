@@ -158,6 +158,27 @@ Deno.serve(async(req:Request)=>{
       await db.from("novalab_site_admins").update({session_version:session.version+1}).eq("username",session.username).eq("session_version",session.version);
       return send(req,{ok:true});
     }
+    if(req.method==="POST"&&path==="/change-password"){
+      const body=await readBody(req,1500);
+      const oldPassword=String(body.currentPassword||"");
+      const newPassword=String(body.newPassword||"");
+      if(newPassword.length<12||newPassword.length>128||newPassword.toLowerCase().includes(session.username))
+        return send(req,{error:"Das neue Passwort muss mindestens 12 Zeichen lang sein und darf den Benutzernamen nicht enthalten."},400);
+      const {data:stored,error:readError}=await db.from("novalab_site_admins").select("salt_hex,hash_hex,iterations,session_version").eq("username",session.username).maybeSingle();
+      if(readError||!stored)throw Error("Administrator nicht gefunden.");
+      const matches=await verifyPassword(oldPassword,stored.salt_hex,stored.hash_hex,stored.iterations);
+      if(!matches)return send(req,{error:"Aktuelles Passwort ist falsch."},401);
+      if(oldPassword===newPassword)return send(req,{error:"Bitte ein anderes Passwort wählen."},400);
+      const salt=crypto.getRandomValues(new Uint8Array(24));
+      const key=await crypto.subtle.importKey("raw",enc.encode(newPassword),"PBKDF2",false,["deriveBits"]);
+      const hash=new Uint8Array(await crypto.subtle.deriveBits({name:"PBKDF2",hash:"SHA-256",salt,iterations:450000},key,256));
+      const {data:updated,error:upError}=await db.from("novalab_site_admins").update({
+        salt_hex:hex(salt),hash_hex:hex(hash),iterations:450000,
+        failed_attempts:0,locked_until:null,session_version:stored.session_version+1
+      }).eq("username",session.username).eq("session_version",stored.session_version).select("username");
+      if(upError||!updated?.length)throw Error("Passwortwechsel konnte nicht gespeichert werden.");
+      return send(req,{ok:true,message:"Passwort geändert. Bitte erneut anmelden."});
+    }
     if(req.method==="PUT"&&path==="/projects"){
       const body=await readBody(req,350000);
       if(!Array.isArray(body.projects)||body.projects.length>100)throw new Error("Ungültiger Projektkatalog.");
