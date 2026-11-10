@@ -75,9 +75,19 @@ class DownloadManager {
     const rows = [...this.tasks.values()].map(({id,title,version,url,sha256,format,entry,phase,updatedAt}) =>
       ({id,title,version,url,sha256,format,entry,phase,updatedAt}));
     this.writeChain = this.writeChain.catch(() => {}).then(async () => {
-      const temp = this.file + '.tmp';
-      await fsp.writeFile(temp, JSON.stringify(rows, null, 2));
-      await fsp.rename(temp, this.file);
+      const temp = this.file + '.tmp-' + crypto.randomUUID();
+      try {
+        await fsp.writeFile(temp, JSON.stringify(rows, null, 2), { mode: 0o600 });
+        // On Windows antivirus and indexers can briefly hold destination files.
+        // Never remove the previous state file before a successful atomic rename.
+        for(let attempt=0;attempt<4;attempt++){
+          try { await fsp.rename(temp,this.file);return; }
+          catch(error){
+            if(process.platform!=='win32' || !['EPERM','EACCES','EBUSY'].includes(error.code) || attempt===3) throw error;
+            await new Promise(resolve=>setTimeout(resolve,40*(attempt+1)));
+          }
+        }
+      } finally { await fsp.rm(temp,{force:true}).catch(()=>{}); }
     });
     return this.writeChain;
   }
