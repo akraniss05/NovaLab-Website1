@@ -1,28 +1,40 @@
-# NovaLab Studios – offizielle Website
+# NovaLab Studios – offizielle Projektwebsite
 
-Responsive Website mit violettem NovaLab-Design, Community, Team, Games, Launcher-Roadmap und Coding-Lernapp.
+Die NovaLab-Website stellt das gemeinsame Studio, dessen Lernplattformen, Spielideen und die eigene Spieleplattform vor. Visuelles Konzept: Dark-Violett / Neon mit Stadthintergrund und den Team-Profilbildern.
 
-## Seiten
-- Startseite: Überblick mit Coding-Academy-Spotlight, Team und Projekten
-- **Code lernen** (`#academy`): Lernsprachen, Schritte, XP, Quiz, Prüfungen, Beta-Zugang und Web-App-Buttons
-- Projekte (`#projects`): dynamischer Katalog mit Filtern und Suche
-- Games (`#games`): Veröffentlichungsinfos (noch keine Downloads)
-- Launcher (`#launcher`): geplantes Desktop-Produkt, noch keine Installationsdatei
-- Team (`#team`): Profil-Links für NyxAtheris und Jxnxs_GHG
-- Support (`#support`): Discord-Community
-- Admin (`#admin`): GitHub-basierter Editor für die Projektliste, benötigt eigenen Token mit `Contents`-Schreibrecht
+## Projekte und Status (Stand: 10. November 2026)
+
+| Bereich | Status | Link |
+| --- | --- | --- |
+| NovaLab Academy / Coding-Lernplattform | Beta, Konto-Freigabe auf Anfrage | https://liverylab-academy.dev/ |
+| Beat Maker Lernplattform | In Entwicklung, **kein bestätigter öffentlicher App-Link** | `#music` |
+| Erstes NovaLab-Spiel | **In Planung**; keine spielbare Version vorhanden | `#games` |
+| NovaLab Launcher | Konzept, noch keine Installationsdatei | `#launcher` |
+
+Die Beat-Maker-Seite beschreibt das Lernkonzept für Rhythmus, Drums, Bass, Musikstile und Mixing. Der gezeigte 16-Step-Sequencer ist eine **grafische Vorschau**, keine funktionierende Musiksoftware.
+
+Die Game-Seite zeigt den beabsichtigten Entwicklungsprozess (Konzept → Prototyp → Tests → Release) ohne verbindliche Termine. Keine erfundenen Gameplay-Funktionen, Screenshots oder Downloads.
+
+## Navigation und Inhalte
+
+- `#home`: Vorstellung von NovaLab Studios, Team, Projektkarten und Coding-Spotlight
+- `#projects`: Filterbarer Projektkatalog mit Kategorien Coding, Musik, Games und Tools
+- `#academy`: Coding-/Blender-Kurse, Lernpfade, Aufgaben, Quiz und Web-App-Link
+- `#music`: Beat Maker-Lernkonzept und geplante Lernmodule
+- `#games`: Erstes geplantes Spiel und Entwicklungsfahrplan
+- `#launcher`: Vision der Spielebibliothek und Softwareverteilung
+- `#team`: Discord-Profil-Links
+- `#support`: Community und FAQ
+- `#admin`: GitHub-basierte Pflege des JSON-Projektkatalogs
 
 ## Links
-- NovaLab Academy App: https://liverylab-academy.dev/
-- Academy Repository: https://github.com/akraniss05/NovaLab-Code
-- Discord: https://discord.gg/SZhYa6Nnmy
+- NovaLab Code Repository: https://github.com/akraniss05/NovaLab-Code
+- Coding Web-App: https://liverylab-academy.dev/
+- NovaLab Community: https://discord.gg/SZhYa6Nnmy
+- Website: https://akraniss05.github.io/NovaLab-Website1/
 
-Die App-Domain ist in der Website verlinkt. Ob der Domain-Host derzeit erreichbar ist, wurde nicht extern bestätigt.
+## Hosting & Admin
 
-## Veröffentlichung
-GitHub Pages: `main` / `(root)`, `index.html` als Einstieg.
-Die `index.html` enthält CSS, JavaScript und Assets für eine eigenständig lauffähige Website. Der Projekt-Katalog wird, soweit vorhanden, aus `data/projects.json` geladen.
+GitHub Pages über Branch `main` und Root-Verzeichnis. Die statische `index.html` enthält CSS, JavaScript und eingebettete Grafiken; Projektinformationen liegen in `data/projects.json`.
 
-**Sicherheit:** Auf GitHub Pages gibt es keinen echten Server-Login. Der Admin-Editor arbeitet ausschließlich mit einem bewusst eingegebenen GitHub-Token (im Arbeitsspeicher) und schreibt nur Projekt-Metadaten; der Token darf niemals in eine Datei eingecheckt werden.
-
-Einige Angebote befinden sich in der Beta; der Launcher ist noch nicht veröffentlicht.
+Der Admin-Katalog-Editor verwendet für berechtigte Repository-Mitglieder einen manuell eingegebenen GitHub Fine-Grained Token mit `Contents: read/write` ausschließlich für das Projekt-Repository. **Keinen Token in den Quellcode committen.** Es gibt noch keinen eigenständigen sicheren Login-Server für die Website. Änderungen im Editor werden erst durch einen expliziten GitHub-Commit veröffentlicht.
