@@ -52,4 +52,8 @@ for local_page in ('launcher/download.html','launcher/mini-games/index.html'):
     assert '<html lang="de">' in contents
     assert 'NovaLab' in contents
     assert '</html>' in contents
+    if local_page.endswith('download.html'):
+        assert 'NovaLab-Launcher-Setup-0.7.0.exe' in contents
+    else:
+        assert "['../catalog.json','https://raw.githubusercontent.com/" in contents
 print(f'OK: {len(parser.section_routes)} routes, {len(parser.ids)} unique IDs, {len(parser.local_urls)} local resources, 5 valid SVG assets, download page, Mini-Games and JavaScript')
