@@ -134,3 +134,75 @@ html,body{background:#0d1320}
 .media-lightbox img{max-width:100%;max-height:100%;object-fit:contain;border-radius:7px}
 .media-lightbox button{position:absolute;right:25px;top:20px;background:#25304c;color:#fff;border:1px solid #6b79a4;border-radius:9px;padding:10px 14px}
 @media(max-width:1050px){.publisher-invite{flex-wrap:wrap}.details-game-head{flex-direction:column}.details-cover{width:104px;min-width:104px;height:146px}}
+/* NovaLab Client: Steam-inspired density and usability, original NovaLab surfaces.
+   Desktop-only. Do NOT copy this stylesheet into the public website. */
+:root{
+  --bg:#080f1e;--surface:#101a2d;--card:#142139;--stroke:#2b3c5a;
+  --muted:#9aaecb;--purple:#a98aff;--purple2:#7862ed;
+  --accent-blue:#278cff;--accent-violet:#794df2;
+}
+html,body{background:#080f1e}
+.shell{background:radial-gradient(ellipse at 72% -19%,#314b9a33,transparent 58%),#08101e}
+.sidebar{width:260px;background:linear-gradient(170deg,#111c33,#0a1223 80%);border-right:1px solid #4d668344;padding-top:32px}
+.brand-symbol{background:linear-gradient(134deg,#1b9bff,#6951e8 69%,#b264fa);border-color:#5f9fff9a}
+.brand-text strong{letter-spacing:.15px}.brand-text strong span{color:#84b5ff}
+.nav-item{color:#afbdd7}
+.nav-item.active{background:linear-gradient(95deg,#176cd69b,#4835a06e 81%);border-color:#4c93f288;box-shadow:inset 3px 0 #449cff,0 4px 20px #1d54b027;color:#f9fbff}
+.nav-item.active .nav-ico{color:#8ed3ff}
+.nav-item:hover{background:#22375599}
+.topbar{height:65px;min-height:65px;background:#091326eb;border-bottom:1px solid #304869aa;gap:0}
+.topbar-tools{gap:10px;min-width:0;padding:0 0 0 23px}.top-brand{font-size:15px;letter-spacing:.3px;white-space:nowrap}
+.top-nav{gap:5px}.top-nav button{padding:11px 15px;border-radius:8px;font-size:11px;font-weight:850;letter-spacing:.5px}
+.top-nav button.active{background:linear-gradient(109deg,#185fcaaf,#45329f89);box-shadow:inset 0 -2px #49a8ff;border-color:#477ad59a}
+.topbar-drag{min-width:12px}
+.topbar-right{display:flex;align-items:center;gap:9px;margin-right:12px;min-width:0;-webkit-app-region:no-drag}
+.global-search{height:36px;display:flex;align-items:center;gap:8px;min-width:115px;width:clamp(138px,19vw,320px);padding:0 11px;border:1px solid #3a547b;background:#0a1529;border-radius:9px;color:#a8c5e7;-webkit-app-region:no-drag;transition:border-color .2s,background .2s}
+.global-search:focus-within{border-color:#73a3fc;background:#132544}
+.global-search>span{font-size:22px}
+.global-search input{font:inherit;border:0;outline:0;background:transparent;color:#eef4ff;width:100%;min-width:0;font-size:11px}
+.global-search input::placeholder{color:#7f99b6}
+.global-search kbd{font-size:9px;white-space:nowrap;background:#263854;border-radius:4px;color:#9fb8df;padding:3px 5px}
+.top-download{position:relative;min-width:40px;min-height:35px;border:1px solid #344e72;border-radius:8px;background:#182c4b;color:#c5e5ff}
+.top-download:hover{border-color:#79b7ff;background:#193e6c}
+.top-download-count{position:absolute;top:-7px;right:-7px;min-width:19px;height:19px;display:grid;place-items:center;padding:0 4px;border-radius:13px;background:#216df5;color:#fff;font-size:10px;font-weight:900;border:2px solid #081326}
+.top-user{border:1px solid #354e78;background:#19294b;border-radius:8px}
+.window-controls button{width:43px}
+.page{max-width:1580px}
+.page-header h1{letter-spacing:-1.9px}
+.page-header h1 span{background:linear-gradient(100deg,#6ccaff,#a18dff);background-clip:text;color:transparent}
+.project-card,.panel,.download-task{border:1px solid #374865;border-radius:12px}
+.project-card:hover{border-color:#617fca}
+.card-button,.primary-button{background:linear-gradient(108deg,#207de8,#7447e9);border:1px solid #5c98f8;color:#fff;box-shadow:0 4px 14px #266aca38}
+.card-button.installed{background:linear-gradient(100deg,#166dba,#2f4b9c)}
+.card-button.update{background:linear-gradient(100deg,#275aa7,#5c49bf)}
+.library-toolbar{background:#111d33;border:1px solid #354463;border-radius:12px;padding:12px 14px}
+.library-toolbar .secondary-button{background:#1c2944;color:#a7bbd4;border-color:#384762}
+.library-toolbar .secondary-button.active-choice{background:linear-gradient(95deg,#276ed5,#5945a8);border-color:#7eabf8;color:#fff}
+.project-grid{gap:15px}
+.project-card{background:linear-gradient(150deg,#19253b,#101729)}
+.project-card .project-art{border-bottom:1px solid #3d4f6b}
+.download-task{background:#131f33}
+.progress-track{background:#293a59}
+.progress-fill{background:linear-gradient(95deg,#17b3e8,#287dfc 58%,#8d51fb)}
+.more-games{display:flex;justify-content:center;padding:22px 0 6px}
+.more-games button{min-width:210px}
+.toast{z-index:200}
+@media(max-width:1260px){
+ .top-brand{display:none}
+ .topbar-tools{padding-left:10px}
+ .top-nav button{padding:10px 9px}
+ .global-search{width:175px}
+ .global-search kbd{display:none}
+ .topbar-right{gap:5px}
+}
+@media(max-width:1040px){
+ .sidebar{width:214px}
+ .topbar{height:58px;min-height:58px}
+ .top-nav button{font-size:10px;padding:9px 7px}
+ .global-search{width:135px}
+ .top-user #topUsername{display:none}
+ .window-controls button{width:33px}
+}
+@media(prefers-reduced-motion:reduce){
+ .project-card,.card-button,.primary-button,.nav-item,.global-search{transition:none}
+}
