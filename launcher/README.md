@@ -1,3 +1,18 @@
+## v0.3.0: NovaLab-Accounts, Academy und Admin Studio
+
+- Jeder kann sich kostenlos mit Benutzername und Passwort registrieren (mindestens 10 Zeichen, keine Mailadresse notwendig).
+- Login und Sessionverwaltung erfolgen auf der Supabase Edge Function `novalab-launcher-api`; keine Passwörter, Tokens oder Service-Keys im Renderer.
+- Die Admin-Konten `NyxAtheris` und `Jonas` werden einmalig in der Datenbank erstellt; ihre Startpasswörter werden **nicht im Repository** gespeichert. Aus Sicherheitsgründen ist vor dem ersten Upload eine Änderung auf mindestens 12 Zeichen erforderlich.
+- Ein Klick auf **NovaLab Academy** öffnet die Coding-Lernplattform in einem eigenständigen, isolierten App-Fenster. Die Academy-Anmeldung ist bis auf Weiteres separat.
+- Das **Admin Studio** bietet Veröffentlichung von einzelnen HTML-Spielen (`.html`, automatisch als ZIP paketiert) oder ZIP-Projekten mit `index.html` auf oberster Ebene; die Version und Spiel-ID bilden das Release. Limit: 12 MB.
+- Community-Spiele werden in einem getrennten öffentlichen Supabase Storage Bucket abgelegt; nur Admins können hochladen. Installer prüfen vor dem Start den SHA-256-Hash und ZIP-Inhalt; der Mini-Game-Prozess erhält keine Node/Electron-Rechte und hat eine restriktive CSP.
+- Admins können Spiele ausblenden und wieder freigeben. Installierte Spiele bleiben auf Nutzergeräten erhalten.
+- Neue Games erscheinen bei jedem Katalog-Refresh und zyklisch, **ohne einen neuen Launcher-Build**. Desktop-Updates laufen weiterhin über GitHub Releases.
+
+**Hinweis zur Veröffentlichung:** Der erste Launcher-Installer mit den neuen Funktionen entsteht über GitHub Actions nach einem erfolgreichen Build. Die Website/Academy werden nicht durch einen öffentlichen Launcher-Account entsperrt. Das System ist als MVP gedacht: Für viele öffentliche Nutzer sind Captcha, Abuse-Protection, Monitoring und ein sicherer Recovery-Flow noch sinnvoll.
+
+---
+
 # NovaLab Games Launcher · Windows Desktop App
 
 ## ✦ NEU: Kleine Spiele direkt aus ChatGPT veröffentlichen (v0.2.0)

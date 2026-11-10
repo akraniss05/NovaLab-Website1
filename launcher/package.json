@@ -1,7 +1,7 @@
 {
   "name": "novalab-launcher",
   "productName": "NovaLab Launcher",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "NovaLab Mini Games Launcher: optionale Windows-Downloads für HTML5- und Desktop-Spiele",
   "main": "src/main.cjs",
   "private": true,

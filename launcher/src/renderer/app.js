@@ -1,7 +1,7 @@
 'use strict';
 
 const api = window.novalab;
-const PAGE_IDS = ['home', 'discover', 'library', 'downloads', 'settings'];
+const PAGE_IDS = ['home', 'discover', 'library', 'downloads', 'settings', 'account', 'admin'];
 let state = { games: [], installed: {}, settings: {}, update: {}, source: 'local', activeDownload: null };
 let page = 'home';
 let search = '';
@@ -30,10 +30,13 @@ function selectPage(name) {
   for (const id of PAGE_IDS) $('page-' + id).classList.toggle('hidden', id !== name);
   document.querySelectorAll('[data-page].nav-item').forEach(btn => btn.classList.toggle('active', btn.dataset.page === name));
   $('scrollArea').scrollTo({ top: 0, behavior: 'instant' });
+  if (name === 'admin' && (state.account?.role !== 'admin' || state.account?.mustChangePassword)) { toast('Admin-Zugriff erst nach Passwortänderung möglich.', true); return selectPage('account'); }
+  if (name === 'admin') loadAdminGames();
   if (name === 'library') renderLibrary();
   if (name === 'discover') renderDiscover();
   if (name === 'downloads') renderDownload();
   if (name === 'settings') renderSettings();
+  if (name === 'account') renderAccount();
 }
 function iconFor(game) {
   if (game.id.includes('beat')) return '♫';
@@ -91,8 +94,29 @@ function renderSettings() {
   $('downloadUpdateBtn').classList.toggle('hidden', state.update.status !== 'available');
   $('restartUpdateBtn').classList.toggle('hidden', state.update.status !== 'downloaded');
 }
+function renderAccount() {
+  const a = state.account;
+  $('accountLoggedOut').classList.toggle('hidden', !!a);
+  $('accountLoggedIn').classList.toggle('hidden', !a);
+  $('adminNav').classList.toggle('hidden', !(a && a.role === 'admin' && !a.mustChangePassword));
+  $('sidebarUsername').textContent = a?.username || 'Gast';
+  $('sidebarAvatar').textContent = (a?.username || 'NL').slice(0, 2).toUpperCase();
+  $('sidebarRole').textContent = a ? a.role === 'admin' ? 'Administrator' : 'Community-Mitglied' : 'Anmelden oder registrieren';
+  if (a) {
+    $('profileUsername').textContent = a.username;
+    $('profileRole').textContent = a.role === 'admin' ? 'NovaLab Studios Administrator' : 'NovaLab Community';
+    $('passwordWarning').classList.toggle('hidden', !a.mustChangePassword);
+  }
+}
+async function loadAdminGames() {
+  if (!state.account || state.account.role !== 'admin' || state.account.mustChangePassword) return;
+  const data = await invoke('admin-games');
+  if (!data) return;
+  const entries = data.games || [];
+  $('adminGamesList').innerHTML = entries.length ? entries.map(g => `<article class="admin-game-row"><div><strong>${escapeHTML(g.title)}</strong><small>${escapeHTML(g.id)} · ${escapeHTML(g.version)}</small></div><button type="button" class="secondary-button" data-action="game-visibility" data-id="${escapeHTML(g.id)}" data-published="${g.published ? 'true' : 'false'}">${g.published ? 'Ausblenden' : 'Veröffentlichen'}</button></article>`).join('') : '<p class="hint">Noch keine hochgeladenen Spiele.</p>';
+}
 function renderAll() {
-  renderHome(); renderDiscover(); renderLibrary(); renderDownload(); renderSettings();
+  renderHome(); renderDiscover(); renderLibrary(); renderDownload(); renderSettings(); renderAccount();
   const online = state.source === 'online';
   $('connectionDot').classList.toggle('online', online);
   $('connectionText').textContent = online ? 'Online verbunden' : 'Lokaler Projektkatalog';
@@ -112,8 +136,13 @@ async function act(action, id) {
     $('confirmText').textContent = 'Alle lokal installierten Dateien von „' + game.title + '“ werden gelöscht. Deine anderen Spiele bleiben erhalten.';
     $('confirmOverlay').classList.remove('hidden');
   }
+  if (action === 'open-academy') return invoke('open-academy');
   if (action === 'open-website') await invoke('open-link', 'https://akraniss05.github.io/NovaLab-Website1/');
   if (action === 'open-discord') await invoke('open-link', 'https://discord.gg/SZhYa6Nnmy');
+  if (action === 'logout-account') { const x = await invoke('logout-account'); if (x) { state.account = null; selectPage('account'); renderAll(); toast('Du bist abgemeldet.'); } }
+  if (action === 'choose-game-file') { const f = await invoke('choose-game-file'); if (f && !f.canceled) $('uploadFileName').textContent = f.name + ' · ' + (f.size / 1024).toFixed(0) + ' KB'; }
+  if (action === 'load-admin-games') await loadAdminGames();
+  if (action === 'game-visibility') { const btn = document.querySelector('[data-action=game-visibility][data-id= + CSS.escape(id) + ]'); const x = await invoke('game-visibility', { id, published: btn?.dataset.published !== 'true' }); if (x) { await invoke('refresh-catalog'); await loadAdminGames(); toast('Sichtbarkeit aktualisiert.'); } }
   if (action === 'refresh') { const data = await invoke('refresh-catalog'); if (data) { state.games = data.games; state.source = data.source; renderAll(); toast('Projektkatalog wurde aktualisiert.'); } }
   if (action === 'check-update') await invoke('check-update');
   if (action === 'download-update') await invoke('download-update');
@@ -129,6 +158,7 @@ async function confirmUninstall() {
 }
 function handleEvent(event) {
   if (!event || !event.type) return;
+  if (event.type === 'auth') { state.account = event.account; renderAccount(); if (page === 'admin' && (!state.account || state.account.mustChangePassword)) selectPage('account'); }
   if (event.type === 'catalog') { state.games = event.games; state.source = event.source; renderAll(); }
   if (event.type === 'installed') { state.installed = event.installed; renderAll(); }
   if (event.type === 'updater') {
@@ -157,6 +187,38 @@ document.addEventListener('click', async ev => {
   if (filterButton) { filter = filterButton.dataset.filter; document.querySelectorAll('[data-filter]').forEach(btn => btn.classList.toggle('selected', btn === filterButton)); return renderDiscover(); }
   const actionButton = ev.target.closest('[data-action]');
   if (actionButton) return act(actionButton.dataset.action, actionButton.dataset.id);
+});
+$('loginForm').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const form = new FormData(ev.currentTarget);
+  const result = await invoke('login-account', { username: String(form.get('username')), password: String(form.get('password')) });
+  if (result) { state.account = result.account; ev.currentTarget.reset(); renderAccount(); toast('Willkommen, ' + result.account.username + '!'); if (result.account.mustChangePassword) toast('Bitte zuerst dein Startpasswort ändern.'); }
+});
+$('registerForm').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const form = new FormData(ev.currentTarget);
+  if (form.get('password') !== form.get('repeat')) return toast('Die Passwörter stimmen nicht überein.', true);
+  const data = { username: String(form.get('username')), password: String(form.get('password')) };
+  const result = await invoke('register-account', data);
+  if (result) { ev.currentTarget.reset(); toast('Account erstellt! Melde dich jetzt links an.'); }
+});
+$('changePasswordForm').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const form = new FormData(ev.currentTarget);
+  if (form.get('newPassword') !== form.get('repeat')) return toast('Die neuen Passwörter stimmen nicht überein.', true);
+  const data = { oldPassword: String(form.get('oldPassword')), newPassword: String(form.get('newPassword')) };
+  const result = await invoke('change-account-password', data);
+  if (result) { state.account = null; ev.currentTarget.reset(); renderAccount(); toast('Passwort geändert. Bitte erneut anmelden.'); }
+});
+$('gameUploadForm').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const values = new FormData(ev.currentTarget);
+  const btn = $('publishGameBtn');
+  btn.disabled = true; btn.textContent = 'Spiel wird hochgeladen …';
+  try {
+    const result = await invoke('publish-game', Object.fromEntries(['title', 'slug', 'version', 'description'].map(k => [k, String(values.get(k) || '')])));
+    if (result) { toast('Spiel veröffentlicht: ' + result.game.title); await loadAdminGames(); $('uploadFileName').textContent = 'Keine Datei ausgewählt'; ev.currentTarget.reset(); }
+  } finally { btn.disabled = false; btn.textContent = 'Spiel für alle veröffentlichen ↓'; }
 });
 $('searchInput').addEventListener('input', ev => { search = ev.target.value; renderDiscover(); });
 $('autoUpdateCheck').addEventListener('change', async ev => {

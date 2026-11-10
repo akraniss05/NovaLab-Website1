@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, shell, nativeTheme, session, protocol } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, nativeTheme, session, protocol, dialog, safeStorage } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
@@ -15,6 +15,8 @@ const extractZip = require('extract-zip');
 const WEBSITE = 'https://akraniss05.github.io/NovaLab-Website1/';
 const DISCORD = 'https://discord.gg/SZhYa6Nnmy';
 const REMOTE_CATALOG = 'https://raw.githubusercontent.com/akraniss05/NovaLab-Website1/main/launcher/catalog.json';
+const COMMUNITY_API = 'https://ekgxotvvhkmeuxvuwbei.supabase.co/functions/v1/novalab-launcher-api';
+const ACADEMY_URL = 'https://liverylab-academy.dev/';
 const MAX_ARCHIVE_BYTES = 5 * 1024 * 1024 * 1024;
 const MAX_MINI_ARCHIVE_BYTES = 120 * 1024 * 1024;
 const MAX_MINI_UNPACKED_BYTES = 300 * 1024 * 1024;
@@ -34,6 +36,11 @@ let catalogSource = 'local';
 let activeDownload = null;
 let updaterState = { status: 'idle', message: '', progress: 0 };
 let gameProtocolReady = false;
+let token = '';
+let account = null;
+let uploadFile = null;
+let academyWindow = null;
+const authPath = () => path.join(app.getPath('userData'), 'session.bin');
 
 function readJson(filename, fallback) {
   try { return JSON.parse(fs.readFileSync(filename, 'utf8')); } catch { return fallback; }
@@ -60,7 +67,8 @@ function isValidRelease(release) {
     const url = new URL(release.url);
     const legacyRelease = url.hostname === 'github.com' && /^\/akraniss05\/[a-zA-Z0-9_.-]+\/releases\/download\/[^/]+\/[^/]+\.zip$/i.test(url.pathname);
     const miniDownload = url.hostname === 'raw.githubusercontent.com' && /^\/akraniss05\/NovaLab-Website1\/main\/launcher\/mini-games\/downloads\/[a-z0-9-]+\/[a-z0-9.-]+\.zip$/i.test(url.pathname);
-    return url.protocol === 'https:' && (legacyRelease || (format === 'html' && miniDownload)) && !url.username && !url.password && !url.search && !url.hash;
+    const communityDownload = url.hostname === 'ekgxotvvhkmeuxvuwbei.supabase.co' && /^\/storage\/v1\/object\/public\/novalab-launcher-games\/community-[a-z0-9-]+\/[0-9]+\.[0-9]+\.[0-9]+\/[a-f0-9-]+\.zip$/i.test(url.pathname);
+    return url.protocol === 'https:' && (legacyRelease || (format === 'html' && (miniDownload || communityDownload))) && !url.username && !url.password && !url.search && !url.hash;
   } catch { return false; }
 }
 function normalizeCatalog(raw) {
@@ -96,6 +104,114 @@ function isSafeExternal(value) {
       (url.hostname === 'github.com' || url.hostname === 'discord.gg' || url.hostname === 'liverylab-academy.dev' || url.hostname === 'akraniss05.github.io');
   } catch { return false; }
 }
+async function communityRequest(route, options = {}) {
+  const headers = { 'User-Agent': 'NovaLab-Launcher', ...(options.json ? { 'content-type': 'application/json' } : {}) };
+  if (options.auth !== false && token) headers.authorization = 'Bearer ' + token;
+  const response = await fetch(COMMUNITY_API + '/' + route, { method: options.method || 'GET', headers,
+    body: options.form || (options.json ? JSON.stringify(options.json) : undefined),
+    signal: AbortSignal.timeout(options.form ? 85000 : 13000) });
+  const text = await response.text();
+  if (text.length > 250000) throw new Error('Antwort des NovaLab-Servers ist zu groß.');
+  let data = {};
+  try { data = JSON.parse(text); } catch { throw new Error('NovaLab-Server ist gerade nicht erreichbar.'); }
+  if (!response.ok) throw new Error(String(data.error || 'Serverfehler').slice(0, 180));
+  return data;
+}
+async function saveToken(value) {
+  token = value;
+  if (!value) { await fsp.rm(authPath(), { force: true }).catch(() => {}); return; }
+  if (safeStorage.isEncryptionAvailable()) {
+    await fsp.writeFile(authPath(), safeStorage.encryptString(value), { mode: 0o600 });
+  }
+}
+async function restoreAccount() {
+  try {
+    if (safeStorage.isEncryptionAvailable() && fs.existsSync(authPath())) {
+      token = safeStorage.decryptString(await fsp.readFile(authPath()));
+    }
+    if (token) account = (await communityRequest('me')).account;
+  } catch { await saveToken(''); account = null; }
+  notify('auth', { account });
+}
+function validateAccountData(data) {
+  if (typeof data?.username !== 'string' || typeof data?.password !== 'string') throw new Error('Benutzername und Passwort fehlen.');
+  if (data.username.length > 24 || data.password.length > 128) throw new Error('Eingaben sind zu lang.');
+}
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const b of bytes) { crc ^= b; for (let j = 0; j < 8; j++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1)); }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+function zipHTML(data) {
+  const filename = Buffer.from('index.html');
+  const crc = crc32(data);
+  const local = Buffer.alloc(30 + filename.length);
+  local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4); local.writeUInt16LE(0x0800, 6);
+  local.writeUInt32LE(crc, 14); local.writeUInt32LE(data.length, 18); local.writeUInt32LE(data.length, 22);
+  local.writeUInt16LE(filename.length, 26); filename.copy(local, 30);
+  const directory = Buffer.alloc(46 + filename.length);
+  directory.writeUInt32LE(0x02014b50, 0); directory.writeUInt16LE(20, 4); directory.writeUInt16LE(20, 6);
+  directory.writeUInt16LE(0x0800, 8); directory.writeUInt32LE(crc, 16);
+  directory.writeUInt32LE(data.length, 20); directory.writeUInt32LE(data.length, 24);
+  directory.writeUInt16LE(filename.length, 28); filename.copy(directory, 46);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(1, 8); end.writeUInt16LE(1, 10);
+  end.writeUInt32LE(directory.length, 12); end.writeUInt32LE(local.length + data.length, 16);
+  return Buffer.concat([local, data, directory, end]);
+}
+function openAcademy() {
+  if (academyWindow && !academyWindow.isDestroyed()) { academyWindow.focus(); return; }
+  academyWindow = new BrowserWindow({ title: 'NovaLab Academy', width: 1320, height: 900, minWidth: 750, minHeight: 530,
+    backgroundColor: '#0c101d', autoHideMenuBar: true, webPreferences: { nodeIntegration: false,
+      contextIsolation: true, sandbox: true, webSecurity: true, partition: 'persist:novalab-academy' } });
+  academyWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isSafeExternal(url)) shell.openExternal(url).catch(() => {});
+    return { action: 'deny' };
+  });
+  academyWindow.webContents.session.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+  academyWindow.webContents.on('will-navigate', (event, url) => {
+    if (!url.startsWith(ACADEMY_URL)) { event.preventDefault(); if (isSafeExternal(url)) shell.openExternal(url).catch(() => {}); }
+  });
+  academyWindow.loadURL(ACADEMY_URL);
+  academyWindow.on('closed', () => { academyWindow = null; });
+}
+async function chooseGameFile() {
+  const res = await dialog.showOpenDialog(win, { title: 'HTML-Mini-Game oder ZIP-Paket wählen', properties: ['openFile'],
+    filters: [{ name: 'NovaLab Mini-Games', extensions: ['html', 'zip'] }] });
+  if (res.canceled || !res.filePaths[0]) return { canceled: true };
+  const target = res.filePaths[0];
+  const stat = await fsp.stat(target);
+  if (!stat.isFile() || stat.size > 12 * 1024 * 1024 || stat.size < 30) throw new Error('Datei muss zwischen 30 Bytes und 12 MB groß sein.');
+  uploadFile = target;
+  return { name: path.basename(target), size: stat.size };
+}
+async function publishGame(form) {
+  if (!account || account.role !== 'admin' || account.mustChangePassword) throw new Error('Admin-Zugriff erforderlich. Bitte zuerst das Startpasswort ändern.');
+  if (!uploadFile) throw new Error('Bitte zuerst ein HTML-Spiel oder eine ZIP-Datei auswählen.');
+  const title = String(form?.title || '').trim();
+  const id = 'community-' + String(form?.slug || '').toLowerCase().trim();
+  const version = String(form?.version || '').trim();
+  const description = String(form?.description || '').trim();
+  if (!/^community-[a-z0-9][a-z0-9-]{2,49}$/.test(id) || !/^\d+\.\d+\.\d+$/.test(version) || title.length < 3 || title.length > 80 || description.length > 900) throw new Error('Spielname, Kurzbeschreibung, ID oder Version ungültig.');
+  let archive;
+  const original = await fsp.readFile(uploadFile);
+  if (/\.html$/i.test(uploadFile)) {
+    if (original.length > 3 * 1024 * 1024 || !/<(?:html|!doctype)/i.test(original.toString('utf8').slice(0, 4096))) throw new Error('Bitte eine gültige HTML-Datei bis 3 MB auswählen.');
+    archive = zipHTML(original);
+  } else if (/\.zip$/i.test(uploadFile)) {
+    await checkMiniArchive(uploadFile);
+    archive = original;
+  } else throw new Error('Nur HTML und ZIP werden unterstützt.');
+  if (archive.length > 12 * 1024 * 1024) throw new Error('ZIP darf höchstens 12 MB groß sein.');
+  const payload = new FormData();
+  payload.set('id', id); payload.set('title', title); payload.set('description', description); payload.set('version', version);
+  payload.set('file', new Blob([archive], { type: 'application/zip' }), id + '-' + version + '.zip');
+  const result = await communityRequest('upload', { method: 'POST', form: payload });
+  uploadFile = null;
+  await loadCatalog();
+  return result;
+}
+
 async function loadCatalog() {
   const bundled = normalizeCatalog(readJson(path.join(__dirname, '..', 'catalog.json'), []));
   catalog = bundled;
@@ -108,11 +224,18 @@ async function loadCatalog() {
     const remote = normalizeCatalog(JSON.parse(text));
     if (remote.length) { catalog = remote; catalogSource = 'online'; }
   } catch { /* Local catalog keeps the launcher usable offline. */ }
+  try {
+    const remote = await communityRequest('catalog', { auth: false });
+    if (Array.isArray(remote.games)) {
+      const merged = normalizeCatalog([...remote.games, ...catalog]);
+      if (merged.length) { catalog = merged; catalogSource = 'online'; }
+    }
+  } catch { /* Community API may be offline. Bundled games remain available. */ }
   notify('catalog', { games: catalog, source: catalogSource });
   return { games: catalog, source: catalogSource };
 }
 function snapshot() {
-  return { games: catalog, installed, source: catalogSource, settings, update: updaterState, version: app.getVersion(), packaged: app.isPackaged, platform: process.platform, activeDownload };
+  return { games: catalog, installed, source: catalogSource, settings, update: updaterState, version: app.getVersion(), packaged: app.isPackaged, platform: process.platform, activeDownload, account };
 }
 function localGamePath(id) { return path.join(gameRoot(), id); }
 function gameById(id) { return catalog.find(g => g.id === id); }
@@ -157,20 +280,21 @@ function checkMiniArchive(zipPath) {
   return new Promise((resolve, reject) => {
     yauzl.open(zipPath, { lazyEntries: true, decodeStrings: true, validateEntrySizes: true }, (error, zip) => {
       if (error) return reject(error);
-      let count = 0, uncompressed = 0, done = false;
+      let count = 0, uncompressed = 0, done = false, hasIndex = false;
       const fail = err => { if (!done) { done = true; zip.close(); reject(err); } };
       zip.on('error', fail);
       zip.on('entry', entry => {
         count++;
         uncompressed += entry.uncompressedSize;
         const name = entry.fileName;
+        if (name === 'index.html') hasIndex = true;
         const parts = name.split('/');
         const type = (entry.externalFileAttributes >>> 16) & 0o170000;
         if (count > 500 || uncompressed > MAX_MINI_UNPACKED_BYTES || name.includes('\\') || name.startsWith('/') || parts.some(p => p === '..' || p === '.') || /:/.test(name) || type === 0o120000) return fail(new Error('Ungültige oder zu große Mini-Game-ZIP'));
         if (!name.endsWith('/') && !MINI_EXTENSIONS.has(path.extname(name).toLowerCase())) return fail(new Error('Nicht erlaubter Dateityp: ' + name));
         zip.readEntry();
       });
-      zip.on('end', () => { if (!done) { done = true; resolve(); } });
+      zip.on('end', () => { if (!done) { done = true; if (!hasIndex) reject(new Error('Das ZIP muss index.html im Hauptverzeichnis enthalten.')); else resolve(); } });
       zip.readEntry();
     });
   });
@@ -344,7 +468,8 @@ app.whenReady().then(async () => {
   settings = { ...settings, ...readJson(settingsPath(), {}) };
   setupUpdater();
   createWindow();
-  await loadCatalog();
+  await Promise.allSettled([loadCatalog(), restoreAccount()]);
+  setInterval(() => loadCatalog().catch(() => {}), 10 * 60 * 1000);
   if (settings.checkUpdatesAutomatically) setTimeout(checkUpdates, 12000);
   setInterval(() => { if (settings.checkUpdatesAutomatically) checkUpdates(); }, 6 * 60 * 60 * 1000);
 });
@@ -371,6 +496,35 @@ register('set-settings', async patch => {
   settings.checkUpdatesAutomatically = patch.checkUpdatesAutomatically;
   await writeJsonAtomic(settingsPath(), settings);
   return settings;
+});
+register('register-account', async data => { validateAccountData(data); return communityRequest('register', { method: 'POST', json: data, auth: false }); });
+register('login-account', async data => {
+  validateAccountData(data);
+  const result = await communityRequest('login', { method: 'POST', json: data, auth: false });
+  await saveToken(result.token);
+  account = result.account;
+  notify('auth', { account });
+  return { account };
+});
+register('logout-account', async () => {
+  try { if (token) await communityRequest('logout', { method: 'POST' }); } catch { /* Offline logout clears local token anyway */ }
+  await saveToken(''); account = null; uploadFile = null; notify('auth', { account }); return { ok: true };
+});
+register('change-account-password', async data => {
+  if (!account || typeof data?.oldPassword !== 'string' || typeof data?.newPassword !== 'string') throw new Error('Ungültige Passwortänderung.');
+  const result = await communityRequest('change-password', { method: 'POST', json: data });
+  await saveToken(''); account = null; uploadFile = null; notify('auth', { account }); return result;
+});
+register('open-academy', () => { openAcademy(); return { ok: true }; });
+register('choose-game-file', () => chooseGameFile());
+register('publish-game', form => publishGame(form));
+register('admin-games', () => {
+  if (!account || account.role !== 'admin' || account.mustChangePassword) throw new Error('Admin-Berechtigung fehlt.');
+  return communityRequest('admin-games');
+});
+register('game-visibility', data => {
+  if (!account || account.role !== 'admin' || account.mustChangePassword) throw new Error('Admin-Berechtigung fehlt.');
+  return communityRequest('visibility', { method: 'POST', json: data });
 });
 register('open-link', async url => {
   if (!isSafeExternal(url)) throw new Error('Dieser Link ist nicht freigegeben.');

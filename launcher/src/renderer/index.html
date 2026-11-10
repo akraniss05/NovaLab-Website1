@@ -21,13 +21,16 @@
     </nav>
     <div class="nav-heading extra">NOVALAB</div>
     <nav aria-label="NovaLab">
+      <button class="nav-item academy-nav" data-action="open-academy" type="button"><span class="nav-ico">⌘</span><span>NovaLab Academy</span><span class="external-mark">↗</span></button>
       <button class="nav-item" data-action="open-website" type="button"><span class="nav-ico">◎</span><span>Website</span><span class="external-mark">↗</span></button>
       <button class="nav-item" data-action="open-discord" type="button"><span class="nav-ico">♧</span><span>Discord</span><span class="external-mark">↗</span></button>
     </nav>
     <div class="sidebar-bottom">
       <div class="status-small"><span id="connectionDot" class="online-dot"></span><div><strong>NovaLab Services</strong><small id="connectionText">Katalog wird geladen</small></div></div>
+      <button class="nav-item hidden" id="adminNav" data-page="admin" type="button"><span class="nav-ico">◆</span><span>Admin Studio</span></button>
+      <button class="nav-item" data-page="account" type="button"><span class="nav-ico">♙</span><span>Account</span></button>
       <button class="nav-item" data-page="settings" type="button"><span class="nav-ico">⚙</span><span>Einstellungen</span></button>
-      <div class="sidebar-profile"><div class="profile-avatar">NL</div><div><strong>Willkommen!</strong><small>NovaLab Community</small></div><span class="profile-caret">⌄</span></div>
+      <button class="sidebar-profile sidebar-account" type="button" data-page="account"><div class="profile-avatar" id="sidebarAvatar">NL</div><div><strong id="sidebarUsername">Gast</strong><small id="sidebarRole">Anmelden oder registrieren</small></div><span class="profile-caret">⌄</span></button>
     </div>
   </aside>
   <main class="main">
@@ -43,9 +46,52 @@
       <div class="page hidden" id="page-discover"><header class="page-header compact"><div><span class="eyebrow">NOVALAB / EXPLORE</span><h1>Entdecke <span>Neues.</span></h1><p>Unsere Spiele, Lernplattformen und kreativen Projekte.</p></div></header><div class="toolbar"><input id="searchInput" class="search" type="search" placeholder="Projekt suchen …" autocomplete="off" aria-label="Projekt suchen"><div class="filters" id="filters"><button type="button" data-filter="all" class="selected">Alle</button><button type="button" data-filter="game">Spiele</button><button type="button" data-filter="mini">Mini-Games</button><button type="button" data-filter="app">Apps</button><button type="button" data-filter="tool">Tools</button></div></div><div id="discoverGrid" class="project-grid larger"></div><div id="noResults" class="empty hidden">Keine passenden Projekte gefunden.</div></div>
       <div class="page hidden" id="page-library"><header class="page-header compact"><div><span class="eyebrow">YOUR COLLECTION</span><h1>Deine <span>Bibliothek.</span></h1><p>Installierte NovaLab-Spiele sind hier jederzeit verfügbar.</p></div></header><div id="libraryGrid" class="project-grid larger"></div><div id="emptyLibrary" class="empty-state"><div class="empty-symbol">▣</div><h2>Deine Bibliothek wartet.</h2><p>Suche unter Entdecken nach Mini-Games und lade deine Favoriten herunter.</p><button type="button" class="primary-button" data-page="discover">Projekte entdecken →</button></div></div>
       <div class="page hidden" id="page-downloads"><header class="page-header compact"><div><span class="eyebrow">DOWNLOAD CENTER</span><h1>Deine <span>Downloads.</span></h1><p>Installationen und Updates im Überblick.</p></div></header><div class="panel"><div class="panel-heading"><div class="panel-icon">↓</div><div><h2>Aktuelle Aktivität</h2><p id="downloadDescription">Derzeit werden keine Spieldateien heruntergeladen.</p></div></div><div id="downloadProgressBox" class="hidden"><div class="progress-label"><strong id="downloadGame">Download</strong><span id="downloadPercent">0%</span></div><div class="progress-track"><div id="downloadBar" class="progress-fill"></div></div><p class="hint" id="downloadPhase"></p></div></div><div class="panel second-panel"><h2>So funktioniert's</h2><p>Kleine HTML-Spiele kommen als geprüfte ZIP-Dateien aus dem NovaLab-GitHub-Repository. Du entscheidest selbst, was du installierst. Ein neues Spiel erscheint automatisch im Katalog; Updates werden über Versionsnummern erkannt.</p></div></div>
-      <div class="page hidden" id="page-settings"><header class="page-header compact"><div><span class="eyebrow">YOUR EXPERIENCE</span><h1>Deine <span>Einstellungen.</span></h1><p>Alles, was du für deinen Launcher brauchst.</p></div></header><div class="panel"><div class="panel-heading"><div class="panel-icon">⚙</div><div><h2>Launcher-Updates</h2><p>Aktuelle Version: <strong id="appVersion">–</strong></p></div></div><div class="setting-row"><div><strong>Automatisch nach Updates suchen</strong><p>Beim Start und regelmäßig im Hintergrund prüfen.</p></div><label class="switch"><input id="autoUpdateCheck" type="checkbox"><span></span></label></div><div class="setting-row"><div><strong>Update-Status</strong><p id="updateDescription">Noch nicht geprüft.</p></div><button class="secondary-button" data-action="check-update" type="button">Jetzt prüfen</button></div><div class="update-actions"><button id="downloadUpdateBtn" class="primary-button hidden" data-action="download-update" type="button">Update herunterladen ↓</button><button id="restartUpdateBtn" class="primary-button hidden" data-action="restart-update" type="button">Neustarten & installieren ↻</button></div></div><div class="panel second-panel"><h2>Über NovaLab Launcher</h2><p>Der offizielle Desktop-Launcher von NovaLab Studios. Spielepakete bleiben lokal auf deinem Gerät gespeichert. Für Spielinstallationen wird kein NovaLab-Account benötigt.</p><div class="settings-links"><button class="text-button" type="button" data-action="open-website">NovaLab Website ↗</button><button class="text-button" type="button" data-action="open-discord">Support auf Discord ↗</button><button class="text-button" type="button" data-action="refresh">Katalog neu laden ↻</button></div></div></div>
+      <div class="page hidden" id="page-account">
+        <header class="page-header compact"><div><span class="eyebrow">NOVALAB COMMUNITY</span><h1>Dein <span>Account.</span></h1><p>Registrierung für alle. Freiwillig: Mini-Games bleiben auch ohne Anmeldung spielbar.</p></div></header>
+        <div id="accountLoggedOut" class="account-grid">
+          <form id="loginForm" class="panel account-panel"><span class="eyebrow">WILLKOMMEN ZURÜCK</span><h2>Anmelden</h2><p>Mit deinem NovaLab-Account anmelden.</p>
+            <label class="form-label">Benutzername<input class="studio-input" name="username" autocomplete="username" maxlength="24" required placeholder="Dein Benutzername"></label>
+            <label class="form-label">Passwort<input class="studio-input" name="password" type="password" autocomplete="current-password" maxlength="128" required></label>
+            <button class="primary-button form-submit" type="submit">Anmelden →</button>
+          </form>
+          <form id="registerForm" class="panel account-panel"><span class="eyebrow">NEU BEI NOVALAB?</span><h2>Registrieren</h2><p>Ein kostenloses Konto erstellen.</p>
+            <label class="form-label">Benutzername<input class="studio-input" name="username" autocomplete="username" pattern="[A-Za-z][A-Za-z0-9_]{2,23}" required placeholder="3–24 Zeichen"></label>
+            <label class="form-label">Passwort<input class="studio-input" name="password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required placeholder="Mindestens 10 Zeichen"></label>
+            <label class="form-label">Passwort wiederholen<input class="studio-input" name="repeat" type="password" autocomplete="new-password" minlength="10" maxlength="128" required></label>
+            <button class="primary-button form-submit" type="submit">Kostenlos registrieren →</button>
+          </form>
+        </div>
+        <div id="accountLoggedIn" class="hidden">
+          <div class="panel profile-panel"><div class="profile-big">✦</div><div><span class="eyebrow">ANGEMELDET ALS</span><h2 id="profileUsername">–</h2><p id="profileRole">NovaLab Community</p></div><button type="button" class="secondary-button" data-action="logout-account">Abmelden</button></div>
+          <div id="passwordWarning" class="panel password-warning hidden"><h2>Admin-Passwort muss geändert werden</h2><p>Dein erstes Passwort ist nur für die Einrichtung gedacht. Bitte jetzt ändern, damit Admin-Uploads freigeschaltet werden.</p></div>
+          <form id="changePasswordForm" class="panel account-panel"><h2>Passwort ändern</h2><p>Nach dem Ändern musst du dich erneut anmelden.</p>
+          <label class="form-label">Aktuelles Passwort<input class="studio-input" name="oldPassword" type="password" autocomplete="current-password" required></label>
+          <label class="form-label">Neues Passwort<input class="studio-input" name="newPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+          <label class="form-label">Neues Passwort wiederholen<input class="studio-input" name="repeat" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+          <button class="primary-button form-submit" type="submit">Passwort sicher ändern →</button></form>
+        </div>
+      </div>
+      <div class="page hidden" id="page-admin">
+        <header class="page-header compact"><div><span class="eyebrow">ACCESS LEVEL / ADMIN</span><h1>NovaLab <span>Admin Studio.</span></h1><p>Eigene Spiele hier hochladen und für alle Nutzer freigeben.</p></div></header>
+        <div class="admin-layout">
+          <form id="gameUploadForm" class="panel account-panel"><span class="eyebrow">GAME PUBLISHER</span><h2>Mini-Game veröffentlichen</h2><p>Eine einzelne <strong>.html</strong>-Datei oder eine <strong>.zip</strong>-Datei mit <code>index.html</code> im ZIP-Hauptverzeichnis. Maximal 12 MB.</p>
+            <label class="form-label">Spielname<input class="studio-input" name="title" maxlength="80" minlength="3" required placeholder="Zum Beispiel: SkyRush"></label>
+            <label class="form-label">Spiel-ID (ohne Leerzeichen)<input class="studio-input" name="slug" pattern="[a-z0-9][a-z0-9-]{2,49}" maxlength="50" required placeholder="skyrush"></label>
+            <label class="form-label">Version<input class="studio-input" name="version" pattern="[0-9]+\.[0-9]+\.[0-9]+" value="1.0.0" required></label>
+            <label class="form-label">Beschreibung<textarea class="studio-input" name="description" rows="3" maxlength="900" placeholder="Was erwartet die Spieler?"></textarea></label>
+            <div class="upload-select"><button class="secondary-button" data-action="choose-game-file" type="button">Datei auswählen …</button><span id="uploadFileName">Keine Datei ausgewählt</span></div>
+            <button class="primary-button form-submit" id="publishGameBtn" type="submit">Spiel für alle veröffentlichen ↓</button>
+            <p class="hint">Wichtig: Jede neue Version benötigt eine höhere Versionsnummer. Spieler sehen nach einem Katalog-Refresh den Installieren- oder Update-Button.</p>
+          </form>
+          <div class="panel admin-list-panel"><h2>Veröffentlichte Spiele</h2><p>Hier kannst du Spiele öffentlich zeigen oder aus dem Katalog nehmen. Bereits installierte Spiele werden dadurch nicht vom PC gelöscht.</p>
+            <button class="secondary-button" type="button" data-action="load-admin-games">Liste aktualisieren ↻</button>
+            <div id="adminGamesList" class="admin-games-list"><p class="hint">Lade deine Spieleliste …</p></div>
+          </div>
+        </div>
+      </div>
+      <div class="page hidden" id="page-settings"><header class="page-header compact"><div><span class="eyebrow">YOUR EXPERIENCE</span><h1>Deine <span>Einstellungen.</span></h1><p>Alles, was du für deinen Launcher brauchst.</p></div></header><div class="panel"><div class="panel-heading"><div class="panel-icon">⚙</div><div><h2>Launcher-Updates</h2><p>Aktuelle Version: <strong id="appVersion">–</strong></p></div></div><div class="setting-row"><div><strong>Automatisch nach Updates suchen</strong><p>Beim Start und regelmäßig im Hintergrund prüfen.</p></div><label class="switch"><input id="autoUpdateCheck" type="checkbox"><span></span></label></div><div class="setting-row"><div><strong>Update-Status</strong><p id="updateDescription">Noch nicht geprüft.</p></div><button class="secondary-button" data-action="check-update" type="button">Jetzt prüfen</button></div><div class="update-actions"><button id="downloadUpdateBtn" class="primary-button hidden" data-action="download-update" type="button">Update herunterladen ↓</button><button id="restartUpdateBtn" class="primary-button hidden" data-action="restart-update" type="button">Neustarten & installieren ↻</button></div></div><div class="panel second-panel"><h2>Über NovaLab Launcher</h2><p>Der offizielle Desktop-Launcher von NovaLab Studios. Spielepakete bleiben lokal auf deinem Gerät gespeichert. Accounts und das geschützte Admin Studio werden über den NovaLab-Server betrieben. Für Spielinstallationen wird kein Account benötigt.</p><div class="settings-links"><button class="text-button" type="button" data-action="open-website">NovaLab Website ↗</button><button class="text-button" type="button" data-action="open-discord">Support auf Discord ↗</button><button class="text-button" type="button" data-action="refresh">Katalog neu laden ↻</button></div></div></div>
     </div>
-    <div class="bottom-bar"><div class="bottom-left"><span class="mini-spark">✦</span> <strong>NovaLab Launcher</strong><span class="bottom-version" id="bottomVersion">v0.2.0</span></div><div id="bottomStatus" class="bottom-status">Bereit für neue Abenteuer</div></div>
+    <div class="bottom-bar"><div class="bottom-left"><span class="mini-spark">✦</span> <strong>NovaLab Launcher</strong><span class="bottom-version" id="bottomVersion">v0.3.0</span></div><div id="bottomStatus" class="bottom-status">Bereit für neue Abenteuer</div></div>
   </main>
 </div>
 <div class="toast hidden" id="toast" role="alert"></div>
