@@ -1,7 +1,7 @@
 {
   "name": "novalab-launcher",
   "productName": "NovaLab Launcher",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "NovaLab Desktop Game Client: Mini-Games, Bibliothek, Academy, Community, Admin Studio und zuverlässige Updates",
   "main": "src/main.cjs",
   "private": true,
