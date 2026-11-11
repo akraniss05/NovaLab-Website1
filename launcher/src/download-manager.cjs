@@ -129,6 +129,22 @@ class DownloadManager {
     await this._persist(); this._emit(); this._kick();
     return publicTask(t);
   }
+  async move(id, direction) {
+    if(!ID.test(id||'') || ![-1,1].includes(direction)) throw new Error('Ungültige Warteschlangenaktion.');
+    const task=this.tasks.get(id);
+    if(!task || task.phase!=='queued') throw new Error('Nur wartende Downloads können verschoben werden.');
+    const rows=[...this.tasks.entries()];
+    const waiting=rows.filter(([,t])=>t.phase==='queued').map(([key])=>key);
+    const index=waiting.indexOf(id),target=index+direction;
+    if(index<0 || target<0 || target>=waiting.length)return {ok:true,moved:false};
+    const other=waiting[target];
+    const pos=rows.findIndex(([key])=>key===id);
+    const posOther=rows.findIndex(([key])=>key===other);
+    [rows[pos],rows[posOther]]=[rows[posOther],rows[pos]];
+    this.tasks=new Map(rows);
+    await this._persist();this._emit();
+    return {ok:true,moved:true};
+  }
   async cancel(id) {
     const t = this.tasks.get(id);
     if (!t) throw new Error('Download nicht gefunden.');
