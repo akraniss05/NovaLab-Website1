@@ -5,6 +5,7 @@ on:
     paths:
       - 'launcher/index.html'
       - 'launcher/tests/qa_browser.py'
+      - 'launcher/tests/qa_updates.py'
       - '.github/workflows/novalab-launcher-browser-qa.yml'
   workflow_dispatch:
 permissions:
