@@ -26,6 +26,8 @@ const {_electron:electron}=require('playwright');
   await page.setViewportSize({width:1440,height:900});
   await page.locator('#featuredGrid .project-card').first().waitFor({timeout:30000});
   assert.ok((await page.locator('#featuredGrid .project-card').count())>0,'must display real bundled catalog entries');
+  assert.match(await page.locator('.hero-caption').innerText(),/JETZT VERFÜGBAR|PROJEKTSTATUS/,'featured caption must reflect actual featured product');
+  assert.doesNotMatch(await page.locator('.hero-counter').innerText(),/01\s*\/\s*04/,'placeholder carousel counter must be removed');
   assert.ok((await page.locator('#libraryCount').innerText()).length>0);
   await page.screenshot({path:path.join(output,'01-home.png'),animations:'disabled',fullPage:false});
 
@@ -47,6 +49,7 @@ const {_electron:electron}=require('playwright');
   await page.locator('#page-library').waitFor({state:'visible'});
   const libraryCard=page.locator('#libraryGrid .project-card');
   assert.ok(await libraryCard.count()>=1,'user-saved app must be shown in library');
+  assert.equal(await page.locator('#libraryCount').innerText(),'1','saved but not installed item is part of the library');
   await page.locator('#page-library [data-action="library-mode"][data-id="not-installed"]').click();
   assert.ok(await libraryCard.count()>=1,'user-saved non-installed game must appear in filter');
   await page.screenshot({path:path.join(output,'03-library.png'),animations:'disabled'});
