@@ -12,7 +12,7 @@ permissions:
   contents: read
 jobs:
   real-installer-upgrade:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
@@ -40,7 +40,8 @@ jobs:
           if (-not $exe) { throw 'Installed 0.5 executable not found' }
           $before = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash
           Write-Host "Installed previous version: $($exe.FullName)"
-          $upgrade = Start-Process -FilePath $new -ArgumentList @('/P','/UPDATE','/R') -PassThru -Wait
+          $upgrade = Start-Process -FilePath $new -ArgumentList @('/P','/UPDATE','/R') -PassThru
+          if (-not $upgrade.WaitForExit(90000)) { throw 'Passive update installer did not finish in 90 seconds' }
           if ($upgrade.ExitCode -ne 0) { throw "Tauri NSIS passive update failed: $($upgrade.ExitCode)" }
           Start-Sleep -Seconds 2
           $after = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash
