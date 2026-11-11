@@ -1,65 +1,78 @@
-name: NovaLab Launcher Windows Setup (Rust Tauri)
+name: NovaLab Studios Launcher v0.4 Windows / Rust
 on:
-  workflow_dispatch:
   push:
     branches: [main]
     paths:
       - 'launcher/index.html'
       - 'launcher/desktop/**'
+      - 'launcher/native-bridge.js'
       - '.github/workflows/novalab-launcher-windows.yml'
+  workflow_dispatch:
 permissions:
   contents: write
 jobs:
   build-windows:
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 70
     defaults:
       run:
         working-directory: launcher/desktop
     steps:
       - uses: actions/checkout@v4
-      - name: Install stable Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
         with:
           workspaces: 'launcher/desktop/src-tauri -> target'
-      - name: Prepare frontend and Windows icons
-        shell: bash
+      - name: Prepare bundled web application (external scripts for CSP)
+        shell: pwsh
         run: |
-          mkdir -p dist-web src-tauri/icons
-          cp ../index.html dist-web/index.html
+          @'
+          from pathlib import Path
+          import re
+          root=Path('..'); output=Path('dist-web');output.mkdir(parents=True,exist_ok=True)
+          html=(root/'index.html').read_text(encoding='utf8')
+          css=re.search(r'<style>(.*?)</style>',html,re.S)
+          script=re.search(r'<script>(.*?)</script>',html,re.S)
+          assert css and script, 'Expected packaged mobile CSS and JS'
+          (output/'style.css').write_text(css.group(1),encoding='utf8')
+          (output/'app.js').write_text(script.group(1),encoding='utf8')
+          (output/'native-bridge.js').write_text((root/'native-bridge.js').read_text(encoding='utf8'),encoding='utf8')
+          html=html.replace(css.group(0),'<link rel="stylesheet" href="style.css">',1)
+          html=html.replace(script.group(0),'<script src="native-bridge.js"></script><script src="app.js"></script>',1)
+          (output/'index.html').write_text(html,encoding='utf8')
+          print('Frontend ready; no inline JavaScript, native Tauri bridge added')
+          '@ | python -
+      - name: Generate NovaLab Windows icon
+        shell: pwsh
+        run: |
           python -m pip install --quiet pillow
-          python - <<'PY'
-          from PIL import Image, ImageDraw
-          img=Image.new("RGBA",(256,256),(20,10,37,255))
-          d=ImageDraw.Draw(img)
-          for i in range(6):
-            d.rounded_rectangle((8+i,8+i,247-i,247-i),radius=52,outline=(185,51,169,65+i*12),width=3)
-          d.line([(54,193),(90,66),(140,169),(190,65),(213,193)],fill=(255,86,192,255),width=24,joint='curve')
-          d.line([(54,193),(90,66),(140,169),(190,65),(213,193)],fill=(255,191,244,255),width=5,joint='curve')
-          img.save("src-tauri/icons/icon.png")
-          img.save("src-tauri/icons/icon.ico",format="ICO",sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])
-          PY
+          @'
+          from pathlib import Path
+          from PIL import Image,ImageDraw
+          folder=Path('src-tauri/icons');folder.mkdir(parents=True,exist_ok=True)
+          img=Image.new('RGBA',(256,256),(24,10,42,255));d=ImageDraw.Draw(img)
+          d.rounded_rectangle((6,6,249,249),radius=60,fill=(46,15,71,255),outline=(219,51,171,255),width=5)
+          d.line([(49,195),(84,60),(138,164),(194,56),(215,191)],fill=(250,63,184,255),width=23,joint='curve')
+          img.save(folder/'icon.png')
+          img.save(folder/'icon.ico',format='ICO',sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])
+          '@ | python -
       - name: Install Tauri CLI
         run: npm install --no-audit --no-fund
-      - name: Build Windows NSIS installer
+      - name: Compile NSIS Windows installer
         run: npx tauri build --bundles nsis
-      - name: Upload installer artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: NovaLab-Launcher-Windows-Rust-v0.3
+          name: NovaLab-Studios-v0.4-Windows-Rust
           path: launcher/desktop/src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
-      - name: Publish Windows installer as pre-release
+      - name: Publish versioned GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: novalab-launcher-v0.3-alpha
-          name: NovaLab Studios Launcher v0.3 Alpha (Windows)
+          tag_name: novalab-launcher-v0.4-alpha
+          name: NovaLab Studios Launcher v0.4 Alpha (Rust/Tauri)
           prerelease: true
           files: launcher/desktop/src-tauri/target/release/bundle/nsis/*.exe
           fail_on_unmatched_files: true

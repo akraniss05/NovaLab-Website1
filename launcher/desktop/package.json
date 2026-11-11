@@ -1,12 +1,14 @@
 {
-  "name": "novalab-studios-rust-desktop",
-  "version": "0.3.0",
-  "private": true,
-  "description": "Tauri 2 Windows packaging for NovaLab Launcher",
+  "name":"novalab-studios-launcher",
+  "private":true,
+  "version":"0.4.0",
+  "description":"NovaLab Studios — Rust/Tauri 2 desktop launcher and browser test",
   "scripts": {
-    "build": "tauri build"
+    "dev":"node scripts/dev-server.cjs",
+    "build:web":"node scripts/build-web.cjs",
+    "tauri:dev":"tauri dev",
+    "tauri:build":"tauri build",
+    "test":"node scripts/test-static.cjs"
   },
-  "devDependencies": {
-    "@tauri-apps/cli": "^2.0.0"
-  }
+  "devDependencies": {"@tauri-apps/cli":"^2.0.0"}
 }

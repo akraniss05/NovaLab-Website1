@@ -1,16 +1,16 @@
-name: NovaLab Launcher Browser QA (Mobile and Desktop)
+name: NovaLab Launcher v0.4 Browser QA (Mobile + Desktop)
 on:
-  workflow_dispatch:
   push:
     branches: [main]
     paths:
       - 'launcher/index.html'
-      - 'launcher/tests/**'
+      - 'launcher/tests/qa_browser.py'
       - '.github/workflows/novalab-launcher-browser-qa.yml'
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  real-browser-tests:
+  mobile-and-desktop:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -18,21 +18,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install Chromium and Playwright
+      - name: Install Playwright Chromium
         run: |
           python -m pip install --quiet playwright
           python -m playwright install --with-deps chromium
-      - name: Run real mobile and desktop tests
-        run: |
-          python -m http.server 4173 --bind 127.0.0.1 >/tmp/novalab-qa-server.log 2>&1 &
-          SERVER_PID=$!
-          trap 'kill $SERVER_PID || true' EXIT
-          sleep 2
-          python launcher/tests/browser_qa.py
+      - name: Test real signup, login, admin, studio and browser UI
+        run: python launcher/tests/qa_browser.py
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: NovaLab-Launcher-v0.3-Chromium-Screenshots
-          path: launcher-test-results/
+          name: NovaLab-v0.4-Mobile-Desktop-Screenshots
+          path: launcher/tests/qa-*.png
           if-no-files-found: ignore
