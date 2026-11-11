@@ -8,9 +8,6 @@ on:
       - 'launcher/native-bridge.js'
       - '.github/workflows/novalab-launcher-windows.yml'
   workflow_dispatch:
-concurrency:
-  group: novalab-launcher-windows-main
-  cancel-in-progress: true
 permissions:
   contents: write
 jobs:
