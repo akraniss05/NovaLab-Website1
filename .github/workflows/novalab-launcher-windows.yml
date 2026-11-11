@@ -74,7 +74,8 @@ jobs:
           Invoke-WebRequest -Uri $oldUrl -OutFile $old
           $oldRelease = Invoke-RestMethod -Uri 'https://api.github.com/repos/akraniss05/NovaLab-Website1/releases/tags/novalab-launcher-v0.5-alpha' -Headers @{'User-Agent'='NovaLab-Upgrade-QA'}
           $previousAsset = $oldRelease.assets | Where-Object { $_.name -eq 'NovaLab.Studios.Launcher_0.5.0_x64-setup.exe' } | Select-Object -First 1
-          if (-not $previousAsset -or $previousAsset.digest -notmatch '^sha256:[0-9a-f]{64}
+          if (-not $previousAsset -or $previousAsset.digest -notmatch '^sha256:[0-9a-f]{64}$') { throw 'Old asset is missing verified release digest' }
+          if ((Get-FileHash $old -Algorithm SHA256).Hash.ToLowerInvariant() -ne $previousAsset.digest.Substring(7)) { throw 'Previous release checksum mismatch' }
           $new = (Get-ChildItem -Path 'src-tauri/target/release/bundle/nsis' -Filter '*.exe' | Select-Object -First 1).FullName
           if (-not $new) { throw 'New installer missing' }
           $installDir = Join-Path $env:RUNNER_TEMP 'novalab-upgrade-smoke'
