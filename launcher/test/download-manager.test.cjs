@@ -179,3 +179,27 @@ test('fully downloaded ZIP is SHA verified after HTTP 416 instead of fetched twi
   assert.equal(f.headersSeen.length,1,'cached complete package must not be downloaded again');
   assert.equal(f.headersSeen[0],'bytes='+f.content.length+'-');
 });
+
+test('reordering waiting games persists, does not allow running or invalid moves',async t=>{
+  const f=await fixture(t);
+  const dl=manager(f,async()=>{throw new Error('should not install while paused')},{autoStart:false});
+  t.after(()=>dl.close());
+  await dl.init();
+  await dl.enqueue(game(f,'queue-one'));
+  await dl.enqueue(game(f,'queue-two'));
+  await dl.enqueue(game(f,'queue-three'));
+  assert.deepEqual(dl.list().map(t=>t.id),['queue-one','queue-two','queue-three']);
+  assert.deepEqual(await dl.move('queue-three',-1),{ok:true,moved:true});
+  assert.deepEqual(dl.list().map(t=>t.id),['queue-one','queue-three','queue-two']);
+  assert.deepEqual(await dl.move('queue-one',-1),{ok:true,moved:false});
+  assert.deepEqual(await dl.move('queue-three',1),{ok:true,moved:true});
+  assert.deepEqual(dl.list().map(t=>t.id),['queue-one','queue-two','queue-three']);
+  await dl.pause('queue-three');
+  await assert.rejects(dl.move('queue-three',-1),/Nur wartende/);
+  await assert.rejects(dl.move('queue-one',42),/Ungültige/);
+  const reboot=manager(f,async()=>{throw new Error('must not download')},{autoStart:false});
+  t.after(()=>reboot.close());
+  await reboot.init();
+  assert.deepEqual(reboot.list().map(t=>t.id),['queue-one','queue-two','queue-three']);
+  assert.equal(reboot.list().at(-1).phase,'paused');
+});
