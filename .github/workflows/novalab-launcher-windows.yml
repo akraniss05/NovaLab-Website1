@@ -8,6 +8,9 @@ on:
       - 'launcher/native-bridge.js'
       - '.github/workflows/novalab-launcher-windows.yml'
   workflow_dispatch:
+concurrency:
+  group: novalab-launcher-windows-main
+  cancel-in-progress: true
 permissions:
   contents: write
 jobs:
@@ -72,7 +75,52 @@ jobs:
           $old = Join-Path $env:RUNNER_TEMP 'novalab-v05-setup.exe'
           $oldUrl = 'https://github.com/akraniss05/NovaLab-Website1/releases/download/novalab-launcher-v0.5-alpha/NovaLab.Studios.Launcher_0.5.0_x64-setup.exe'
           Invoke-WebRequest -Uri $oldUrl -OutFile $old
-          if ((Get-FileHash $old -Algorithm SHA256).Hash.ToLowerInvariant() -ne '9dc30c8006b34791263bfc9c385203779743a797ee6b03bd1024eaa998cb88d3') { throw 'Previous release checksum mismatch' }
+          $oldRelease = Invoke-RestMethod -Uri 'https://api.github.com/repos/akraniss05/NovaLab-Website1/releases/tags/novalab-launcher-v0.5-alpha' -Headers @{'User-Agent'='NovaLab-Upgrade-QA'}
+          $previousAsset = $oldRelease.assets | Where-Object { $_.name -eq 'NovaLab.Studios.Launcher_0.5.0_x64-setup.exe' } | Select-Object -First 1
+          if (-not $previousAsset -or $previousAsset.digest -notmatch '^sha256:[0-9a-f]{64}
+          $new = (Get-ChildItem -Path 'src-tauri/target/release/bundle/nsis' -Filter '*.exe' | Select-Object -First 1).FullName
+          if (-not $new) { throw 'New installer missing' }
+          $installDir = Join-Path $env:RUNNER_TEMP 'novalab-upgrade-smoke'
+          New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+          $result = Start-Process -FilePath $old -ArgumentList @('/S',"/D=$installDir") -Wait -PassThru
+          if ($result.ExitCode -ne 0) { throw "0.5 install failed: $($result.ExitCode)" }
+          $exe = Get-ChildItem -Path $installDir -Filter '*.exe' -Recurse | Where-Object {$_.Name -notmatch 'uninstall'} | Select-Object -First 1
+          if (-not $exe) { throw '0.5 installation missing executable' }
+          $oldHash = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash
+          $result = Start-Process -FilePath $new -ArgumentList @('/S',"/D=$installDir") -Wait -PassThru
+          if ($result.ExitCode -ne 0) { throw "0.6 upgrade failed: $($result.ExitCode)" }
+          $upgradedExe = Get-Item -LiteralPath $exe.FullName
+          $newHash = (Get-FileHash $upgradedExe.FullName -Algorithm SHA256).Hash
+          if ($newHash -eq $oldHash) { throw 'Installed EXE unchanged after upgrade' }
+          Write-Host "PASS: older NSIS install upgraded in-place: $($upgradedExe.FullName)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NovaLab-Studios-v0.6-Windows-Rust
+          path: launcher/desktop/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+      - name: Publish versioned GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: novalab-launcher-v0.6-alpha
+          name: NovaLab Studios Launcher v0.6 Alpha (Rust/Tauri)
+          prerelease: true
+          files: launcher/desktop/src-tauri/target/release/bundle/nsis/*.exe
+          fail_on_unmatched_files: true
+      - name: Validate published release asset integrity metadata
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = 'https://api.github.com/repos/akraniss05/NovaLab-Website1/releases/tags/novalab-launcher-v0.6-alpha'
+          for ($try = 0; $try -lt 8; $try++) {
+            $r = Invoke-RestMethod -Uri $url -Headers @{'User-Agent'='NovaLab-CI'}
+            $asset = $r.assets | Where-Object {$_.name -like '*_x64-setup.exe'} | Select-Object -First 1
+            if ($asset -and $asset.digest -match '^sha256:[0-9a-f]{64}$') { break }
+            Start-Sleep -Seconds 3
+          }
+          if (-not $asset -or $asset.digest -notmatch '^sha256:[0-9a-f]{64}$') { throw 'Published installer lacks a verified GitHub SHA-256 digest' }
+          Write-Host "PASS: published installer has SHA256: $($asset.digest)"
+) { throw 'Old asset is missing verified release digest' }
+          if ((Get-FileHash $old -Algorithm SHA256).Hash.ToLowerInvariant() -ne $previousAsset.digest.Substring(7)) { throw 'Previous release checksum mismatch' }
           $new = (Get-ChildItem -Path 'src-tauri/target/release/bundle/nsis' -Filter '*.exe' | Select-Object -First 1).FullName
           if (-not $new) { throw 'New installer missing' }
           $installDir = Join-Path $env:RUNNER_TEMP 'novalab-upgrade-smoke'
