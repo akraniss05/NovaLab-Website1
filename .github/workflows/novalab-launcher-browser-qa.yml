@@ -1,4 +1,4 @@
-name: NovaLab Launcher v0.5 Browser QA (Mobile + Desktop)
+name: NovaLab Launcher v0.6 Browser QA (Mobile + Desktop)
 on:
   push:
     branches: [main]
@@ -6,6 +6,7 @@ on:
       - 'launcher/index.html'
       - 'launcher/tests/qa_browser.py'
       - 'launcher/tests/qa_updates.py'
+      - 'launcher/tests/qa_launcher_updater.py'
       - '.github/workflows/novalab-launcher-browser-qa.yml'
   workflow_dispatch:
 permissions:
@@ -27,10 +28,12 @@ jobs:
         run: python launcher/tests/qa_browser.py
       - name: Test live catalog updates, install progress, and uninstall with mocked native bridge
         run: python launcher/tests/qa_updates.py
+      - name: Test desktop launcher updater UI, checksum feedback and handoff confirmation
+        run: python launcher/tests/qa_launcher_updater.py
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: NovaLab-v0.5-Mobile-Desktop-Screenshots
+          name: NovaLab-v0.6-Mobile-Desktop-Screenshots
           path: launcher/tests/qa-*.png
           if-no-files-found: ignore
