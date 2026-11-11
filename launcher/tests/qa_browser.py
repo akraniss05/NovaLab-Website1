@@ -6,7 +6,7 @@ server=subprocess.Popen(['python','-m','http.server',str(PORT),'--bind','127.0.0
 try:
  time.sleep(1.2)
  with sync_playwright() as p:
-  b=p.chromium.launch(headless=True, args=['--no-sandbox'])
+  b=p.chromium.launch(headless=True, args=['--no-sandbox'], **({'executable_path':'/usr/bin/chromium'} if os.path.exists('/usr/bin/chromium') else {}))
   for viewport,name in [({'width':390,'height':844},'mobile'),({'width':1440,'height':900},'desktop')]:
    page=b.new_page(viewport=viewport,device_scale_factor=1,has_touch=name=='mobile',is_mobile=name=='mobile')
    problems=[]
@@ -40,7 +40,7 @@ try:
    page.route('**/functions/v1/**',route_handler)
    page.goto(f'http://127.0.0.1:{PORT}/',wait_until='networkidle')
    page.wait_for_function("document.documentElement.dataset.appReady==='yes'")
-   page.locator('[data-page="account"]:visible').first.click()
+   page.locator('#mobile-tabbar [data-page="account"]' if name=='mobile' else '.avatar-button[data-page="account"]').click()
    page.get_by_text('Anmelden & Registrieren').wait_for()
    page.locator('#auth-form input[name=username]').fill('LockedUser')
    page.locator('#auth-form input[name=password]').fill('NotTheRealPassword')
@@ -59,7 +59,7 @@ try:
    page.locator('input[name=password]').fill('MockPassword-ONLY-NeverReal')
    page.locator('#auth-form button[type=submit]').click()
    page.get_by_text('Willkommen, DemoAdmin').wait_for()
-   page.locator('[data-page="staff"]:visible').first.click()
+   page.locator('.settings-card [data-page="staff"]').first.click()
    page.get_by_text('Team & Berechtigungen').wait_for()
    page.locator('[data-staff-select="DemoDev"]').select_option('developer')
    page.on('dialog',lambda d:d.accept())
@@ -72,7 +72,7 @@ try:
    page.locator('#staff-reset-form button[type=submit]').click()
    page.get_by_text('Passwort zurückgesetzt').first.wait_for()
 
-   page.locator('[data-page="studio"]:visible').first.click()
+   page.locator('.card [data-page="studio"]').first.click()
    page.get_by_text('NovaLab Developer Studio').wait_for()
    page.locator('[data-action="studio-new"]').first.click()
    page.locator('[name="id"]',strict=False).first.fill('community-mein-spiel')
