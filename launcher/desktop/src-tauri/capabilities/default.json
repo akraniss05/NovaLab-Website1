@@ -1,0 +1,6 @@
+{
+ "identifier":"default",
+ "description":"Access limited to the local NovaLab window and the native commands explicitly defined in Rust.",
+ "windows":["main"],
+ "permissions":["core:default"]
+}
