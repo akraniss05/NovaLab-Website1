@@ -194,12 +194,14 @@ test('reordering waiting games persists, does not allow running or invalid moves
   assert.deepEqual(await dl.move('queue-one',-1),{ok:true,moved:false});
   assert.deepEqual(await dl.move('queue-three',1),{ok:true,moved:true});
   assert.deepEqual(dl.list().map(t=>t.id),['queue-one','queue-two','queue-three']);
-  await dl.pause('queue-three');
-  await assert.rejects(dl.move('queue-three',-1),/Nur wartende/);
+  await dl.move('queue-three',-1);
+  assert.deepEqual(dl.list().map(t=>t.id),['queue-one','queue-three','queue-two']);
+  await dl.pause('queue-two');
+  await assert.rejects(dl.move('queue-two',-1),/Nur wartende/);
   await assert.rejects(dl.move('queue-one',42),/Ungültige/);
   const reboot=manager(f,async()=>{throw new Error('must not download')},{autoStart:false});
   t.after(()=>reboot.close());
   await reboot.init();
-  assert.deepEqual(reboot.list().map(t=>t.id),['queue-one','queue-two','queue-three']);
+  assert.deepEqual(reboot.list().map(t=>t.id),['queue-one','queue-three','queue-two']);
   assert.equal(reboot.list().at(-1).phase,'paused');
 });
