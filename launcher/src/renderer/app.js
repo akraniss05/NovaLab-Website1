@@ -140,7 +140,15 @@ function renderHome() {
     const paragraph=hero.querySelector('.hero-content p');
     if(paragraph)paragraph.textContent=featured.subtitle||featured.description||'Entdecke das neueste NovaLab Spiel.';
     const button=hero.querySelector('.primary-button');
-    if(button){button.removeAttribute('data-page');button.dataset.action='details';button.dataset.id=featured.id;button.textContent=featured.release?'Spiel ansehen →':'Mehr erfahren →';}
+    if(button){button.removeAttribute('data-page');button.dataset.action='details';button.dataset.id=featured.id;button.textContent=featured.release?(featured.type==='app'?'App ansehen →':'Spiel ansehen →'):'Mehr erfahren →';}
+    const kicker=hero.querySelector('.hero-kicker');
+    if(kicker)kicker.textContent=featured.type==='app'?'✦ NOVALAB APP':'✦ NOVALAB GAME';
+    const caption=hero.querySelector('.hero-caption');
+    if(caption)caption.textContent=featured.release
+      ? 'JETZT VERFÜGBAR · '+(featured.type==='app'?'APP':'GAME')+' · V'+featured.release.version
+      : 'PROJEKTSTATUS · '+featured.status.toUpperCase();
+    const counter=hero.querySelector('.hero-counter');
+    if(counter)counter.textContent=state.games.filter(g=>!!g.release).length+' DOWNLOADBARE PRODUKTE';
   }
   $('featuredGrid').innerHTML = [...state.games].sort((a,b)=>Number(!!b.release)-Number(!!a.release)).slice(0, 3).map(g => gameCard(g)).join('') || '<div class="empty">Noch keine Projekte vorhanden.</div>';
   if (!featured && hero) {
@@ -151,7 +159,7 @@ function renderHome() {
     const button=hero.querySelector('.primary-button');
     if(button){button.removeAttribute('data-action');button.removeAttribute('data-id');button.dataset.page='discover';button.textContent='Store öffnen →';}
   }
-  $('libraryCount').textContent = Object.keys(state.installed).length;
+  $('libraryCount').textContent = String(libraryItems().length);
   $('homeLibraryMessage').textContent = Object.keys(state.installed).length ? `${Object.keys(state.installed).length} installierte Spiele · Deine Sammlung ist bereit.` : 'Dein nächstes Lieblingsspiel wartet schon im Store.';
   renderQuickLibrary();
 }
@@ -172,6 +180,7 @@ function renderLibrary() {
   if (librarySort === 'recent') found.sort((a,b) => (state.stats?.[b.id]?.lastPlayed || '').localeCompare(state.stats?.[a.id]?.lastPlayed || ''));
   if (librarySort === 'time') found.sort((a,b) => (state.stats?.[b.id]?.seconds || 0) - (state.stats?.[a.id]?.seconds || 0));
   $('librarySummary').textContent = `${found.length} ${libraryMode === 'favorites' ? 'Favoriten' : libraryMode === 'updates' ? 'Updates verfügbar' : libraryMode==='installed' ? 'installierte Spiele' : libraryMode==='not-installed' ? 'nicht installierte Spiele' : 'Spiele und Apps'}`;
+  $('libraryCount').textContent=String(libraryItems().length);
   document.querySelectorAll('[data-action="library-mode"]').forEach(btn=>btn.classList.toggle('active-choice',btn.dataset.id===libraryMode));
   $('libraryGrid').innerHTML = found.map(g => gameCard(g, { uninstall: true })).join('');
   $('emptyLibrary').classList.toggle('hidden', found.length > 0);
