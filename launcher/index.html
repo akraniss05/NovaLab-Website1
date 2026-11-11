@@ -302,9 +302,9 @@ async function handleNetworkAction(action,target){
  }catch(e){toast('Serveraktion fehlgeschlagen',e.message)}
 }
 async function handleNetworkSubmit(e){
- const form=e.target,fd=new FormData(form);
+ const form=e.target,formId=form.getAttribute('id'),fd=new FormData(form);
  try{
-  if(form.id==='auth-form'){
+  if(formId==='auth-form'){
    const username=String(fd.get('username')||'').trim(),password=String(fd.get('password')||'');
    if(state.authMode==='register'){
     if(fd.get('confirm')!==password)throw Error('Passwörter stimmen nicht überein.');
@@ -315,21 +315,21 @@ async function handleNetworkSubmit(e){
    navigate('account');toast('Willkommen bei NovaLab',account.username);
    if(roleCanEdit())await refreshStudio();if(roleIsAdmin())await refreshStaff();return;
   }
-  if(form.id==='change-password-form'){
+  if(formId==='change-password-form'){
    const result=await requestAccount('change-password',{method:'POST',body:{oldPassword:fd.get('oldPassword'),newPassword:fd.get('newPassword')}});
    account=null;authToken='';try{sessionStorage.removeItem(TOKEN_KEY)}catch{}navigate('account');toast('Passwort geändert',result.message);return;
   }
-  if(form.id==='studio-game-form'){
+  if(formId==='studio-game-form'){
    if(!roleCanEdit())throw Error('Keine Berechtigung.');
    const body={id:String(fd.get('id')||'').trim(),title:fd.get('title'),summary:fd.get('summary'),description:fd.get('description'),genre:fd.get('genre'),developer:fd.get('developer'),kind:fd.get('kind'),status:fd.get('status'),tags:String(fd.get('tags')||'').split(',').map(x=>x.trim()).filter(Boolean),featured:fd.has('featured'),requirements:{minimum:fd.get('requirements')}};
    const result=await requestStudio('save',{method:'POST',body});
    await refreshStudio();await selectStudioGame(result.game.id);toast('Spiel gespeichert',result.game.title);return;
   }
-  if(form.id==='studio-media-form'){
+  if(formId==='studio-media-form'){
    if(!roleCanEdit())throw Error('Keine Berechtigung.');toast('Upload läuft','Bild oder Video wird übertragen.');
    await requestStudio('media',{method:'POST',form:fd});await selectStudioGame(state.studioSelected);toast('Medium hochgeladen');return;
   }
-  if(form.id==='studio-build-form'){
+  if(formId==='studio-build-form'){
    if(!roleCanEdit())throw Error('Keine Berechtigung.');toast('Upload läuft','Bitte nicht schließen, solange das Paket übertragen wird.');
    await requestStudio('upload-build',{method:'POST',form:fd});await selectStudioGame(state.studioSelected);await refreshCatalog();toast('Version hochgeladen','Neue stabile Releases erscheinen als Update.');return;
   }
@@ -360,7 +360,7 @@ function handleAction(action,target){const id=target.dataset.id||'',value=target
 document.addEventListener('click',e=>{const target=e.target.closest('[data-page],[data-action]');if(!target)return;if(target.dataset.page){navigate(target.dataset.page);return}handleAction(target.dataset.action,target)});
 document.addEventListener('change',e=>{if(e.target.dataset.change==='sort'){state.sort=e.target.value;save();render()}});
 el('search').addEventListener('input',e=>{const q=e.target.value;state.search=q;const p=state.page;if(['store','library','favorites'].includes(p)){render();}else if(q.trim()){navigate('store',false);state.search=q;el('search').value=q;render();}});
-document.addEventListener('submit',e=>{if(['auth-form','change-password-form','studio-game-form','studio-media-form','studio-build-form'].includes(e.target.id)){e.preventDefault();handleNetworkSubmit(e);return}if(e.target.id==='game-form'){e.preventDefault();const form=e.target;const fd=new FormData(form);const name=String(fd.get('name')||'').trim().slice(0,70),description=String(fd.get('description')||'').trim().slice(0,600);if(!name||!description)return toast('Bitte Titel und Beschreibung angeben');for(const k of ['artUrl','playUrl','downloadUrl']){const raw=String(fd.get(k)||'').trim();if(raw&&(!safeUrl(raw)||!raw.startsWith('https://')))return toast('Nur HTTPS-Links erlaubt',k)}const id=form.dataset.id||'custom-'+Date.now();const existing=state.customGames.findIndex(g=>g.id===id);const g={id,name,description,genre:String(fd.get('genre')||'Andere').slice(0,50),artUrl:safeUrl(fd.get('artUrl')),playUrl:safeUrl(fd.get('playUrl')),downloadUrl:safeUrl(fd.get('downloadUrl')),kind:'custom',size:'Eigener Eintrag'};if(existing>=0)state.customGames[existing]=g;else{state.customGames.push(g);state.owned.push(id)}save();closeModal();navigate('manage');toast('Spiel gespeichert',name);return;}if(e.target.id==='chat-form'){e.preventDefault();const form=e.target;const input=form.elements.message;const text=input.value.trim();if(!text)return;state.chat.push({text:text.slice(0,280),created:Date.now()});state.chat=state.chat.slice(-40);save();render();const box=el('chat-preview-messages');if(box)box.scrollTop=box.scrollHeight;return;}});
+document.addEventListener('submit',e=>{const formId=e.target.getAttribute('id');if(['auth-form','change-password-form','studio-game-form','studio-media-form','studio-build-form'].includes(formId)){e.preventDefault();handleNetworkSubmit(e);return}if(formId==='game-form'){e.preventDefault();const form=e.target;const fd=new FormData(form);const name=String(fd.get('name')||'').trim().slice(0,70),description=String(fd.get('description')||'').trim().slice(0,600);if(!name||!description)return toast('Bitte Titel und Beschreibung angeben');for(const k of ['artUrl','playUrl','downloadUrl']){const raw=String(fd.get(k)||'').trim();if(raw&&(!safeUrl(raw)||!raw.startsWith('https://')))return toast('Nur HTTPS-Links erlaubt',k)}const id=form.dataset.id||'custom-'+Date.now();const existing=state.customGames.findIndex(g=>g.id===id);const g={id,name,description,genre:String(fd.get('genre')||'Andere').slice(0,50),artUrl:safeUrl(fd.get('artUrl')),playUrl:safeUrl(fd.get('playUrl')),downloadUrl:safeUrl(fd.get('downloadUrl')),kind:'custom',size:'Eigener Eintrag'};if(existing>=0)state.customGames[existing]=g;else{state.customGames.push(g);state.owned.push(id)}save();closeModal();navigate('manage');toast('Spiel gespeichert',name);return;}if(formId==='chat-form'){e.preventDefault();const form=e.target;const input=form.elements.message;const text=input.value.trim();if(!text)return;state.chat.push({text:text.slice(0,280),created:Date.now()});state.chat=state.chat.slice(-40);save();render();const box=el('chat-preview-messages');if(box)box.scrollTop=box.scrollHeight;return;}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modal)closeModal();if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();el('search').focus()}});
 if(desktop){try{window.novalab.onDownloadProgress(data=>{const d=state.downloads.find(x=>x.id===data.id);if(!d)return;d.percent=data.percent??d.percent;d.speed=data.speed||'';d.status=data.status||d.status;d.path=data.path||d.path;save();if(state.page==='downloads')render();if(['done','error','cancelled'].includes(data.status))toast(data.status==='done'?'Download abgeschlossen':data.status==='error'?'Download fehlgeschlagen':'Download abgebrochen',data.message||'');});}catch(e){console.warn(e)}}
 try {
