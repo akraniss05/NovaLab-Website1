@@ -401,7 +401,7 @@ fn spawn_installer_after_exit(path:&Path) -> Result<(),String> {
         "$ErrorActionPreference='Stop'; Start-Sleep -Seconds 2; \
          $installer='{safe}'; \
          if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) {{ exit 2 }}; \
-         Start-Process -FilePath $installer -Wait"
+         Start-Process -FilePath $installer -ArgumentList @('/P','/UPDATE','/R') -Wait"
     );
     Command::new("powershell.exe")
         .arg("-NoProfile").arg("-NonInteractive")
