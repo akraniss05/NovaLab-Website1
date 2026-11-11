@@ -16,6 +16,7 @@
     installGameVersion: ({gameId,version,url,sha256,entry,gameFormat}) => invoke('install_game_version',{gameId,version,url,sha256,entry,gameFormat}),
     launchInstalledGame: (gameId) => invoke('launch_installed_game',{gameId}),
     uninstallInstalledGame: (gameId) => invoke('uninstall_installed_game',{gameId}),
+    onLauncherUpdateProgress: (callback) => native.event.listen('novalab:launcher-update-progress',(event)=>callback(event.payload)),
     onInstallProgress: (callback) => native.event.listen('novalab:install-progress',(event)=>callback(event.payload)),
     onDownloadProgress: (callback) => native.event.listen('novalab:download-progress', (event) => callback(event.payload))
   };
