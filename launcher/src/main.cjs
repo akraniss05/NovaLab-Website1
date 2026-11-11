@@ -726,6 +726,7 @@ register('verify-game', id => verifyGame(id));
 register('pause-download', id => downloads.pause(id));
 register('resume-download', id => downloads.resume(id));
 register('cancel-download', id => downloads.cancel(id));
+register('move-download', data => { if(!data || typeof data.id!=='string' || ![-1,1].includes(data.direction))throw new Error('Ungültige Warteschlangenaktion.'); return downloads.move(data.id,data.direction); });
 register('open-game-folder', async id => { if (!installed[id]) throw new Error('Spiel nicht installiert.'); const err=await shell.openPath(localGamePath(id)); if(err) throw new Error(err); return {ok:true}; });
 register('choose-install-folder', async () => {
   const selected = await dialog.showOpenDialog(win, { properties:['openDirectory','createDirectory'], title:'Spiele-Installationsverzeichnis auswählen' });
