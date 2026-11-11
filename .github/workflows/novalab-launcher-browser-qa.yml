@@ -1,4 +1,4 @@
-name: NovaLab Launcher v0.4 Browser QA (Mobile + Desktop)
+name: NovaLab Launcher v0.5 Browser QA (Mobile + Desktop)
 on:
   push:
     branches: [main]
@@ -24,10 +24,12 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Test real signup, login, admin, studio and browser UI
         run: python launcher/tests/qa_browser.py
+      - name: Test live catalog updates, install progress, and uninstall with mocked native bridge
+        run: python launcher/tests/qa_updates.py
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: NovaLab-v0.4-Mobile-Desktop-Screenshots
+          name: NovaLab-v0.5-Mobile-Desktop-Screenshots
           path: launcher/tests/qa-*.png
           if-no-files-found: ignore

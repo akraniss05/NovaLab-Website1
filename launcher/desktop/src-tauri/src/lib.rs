@@ -26,6 +26,9 @@ struct Progress {
     path: Option<String>,
 }
 fn emit(app: &AppHandle, progress: Progress) { let _ = app.emit("novalab:download-progress", progress); }
+fn emit_install(app:&AppHandle, id:&str, status:&str, percent:Option<u8>, message:&str){
+  let _=app.emit("novalab:install-progress",Progress{id:id.into(),status:status.into(),percent,speed:None,message:Some(message.into()),path:None});
+}
 
 fn registry_path(app: &AppHandle) -> Result<PathBuf, String> {
     let root = app.path().app_data_dir().map_err(|e| e.to_string())?;
@@ -167,7 +170,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(DownloadRegistry::default())
-        .invoke_handler(tauri::generate_handler![pick_game,launch_game,open_external,download_game,cancel_download,installed_games,install_game_version,launch_installed_game,check_launcher_update,install_launcher_update])
+        .invoke_handler(tauri::generate_handler![pick_game,launch_game,open_external,download_game,cancel_download,installed_games,install_game_version,launch_installed_game,uninstall_installed_game,check_launcher_update,install_launcher_update])
         .run(tauri::generate_context!())
         .expect("NovaLab Studios Launcher konnte nicht gestartet werden");
 }
@@ -220,6 +223,17 @@ fn launch_installed_game(app:AppHandle, game_id:String)->Result<serde_json::Valu
     Command::new(&executable).current_dir(executable.parent().unwrap_or(&base)).spawn().map_err(|e|e.to_string())?;
     Ok(serde_json::json!({"ok":true}))
 }
+#[tauri::command]
+fn uninstall_installed_game(app:AppHandle, game_id:String)->Result<serde_json::Value,String>{
+    let manifest=read_installed(&app,&game_id)?;
+    if manifest.game_id!=game_id {return Err("Ungültiges Installationsmanifest".into())}
+    let root=installed_dir(&app)?.canonicalize().map_err(|e|e.to_string())?;
+    let path=root.join(&game_id);
+    let canonical=path.canonicalize().map_err(|e|e.to_string())?;
+    if !canonical.starts_with(&root)||canonical==root {return Err("Ungültiger Installationspfad".into())}
+    fs::remove_dir_all(&canonical).map_err(|e|format!("Spiel konnte nicht entfernt werden: {e}"))?;
+    Ok(serde_json::json!({"ok":true,"gameId":game_id}))
+}
 fn extract_verified_zip(bytes_path:&Path, dest:&Path, entry:&str)->Result<(),String>{
     use std::io::Read;
     let file=fs::File::open(bytes_path).map_err(|e|e.to_string())?;
@@ -259,23 +273,31 @@ async fn install_game_version(app:AppHandle, game_id:String, version:String, url
     fs::create_dir_all(&game_root).map_err(|e|e.to_string())?;
     let scratch=game_root.join(format!(".temp-{}.zip",Uuid::new_v4()));
     let stage=game_root.join(format!(".stage-{}",Uuid::new_v4()));
+    emit_install(&app,&game_id,"active",Some(0),"Starte sicheren Download");
     let result:Result<serde_json::Value,String>=async{
       let client=reqwest::Client::builder().timeout(std::time::Duration::from_secs(180)).redirect(reqwest::redirect::Policy::limited(3)).build().map_err(|e|e.to_string())?;
       let mut response=client.get(u).send().await.map_err(|e|e.to_string())?;
       if !response.status().is_success(){return Err(format!("Download: HTTP {}",response.status()))}
       if response.content_length().unwrap_or(0)>250_000_000{return Err("Spielpaket ist zu groß".into())}
-      let mut hash=Sha256::new();let mut bytes=0_usize;
+      let mut hash=Sha256::new();let mut bytes=0_usize;let mut next_progress=0_u8;
+      let expected=response.content_length().filter(|n|*n>0);
       let mut file=tokio::fs::File::create(&scratch).await.map_err(|e|e.to_string())?;
       while let Some(chunk)=response.chunk().await.map_err(|e|e.to_string())?{
         bytes+=chunk.len();if bytes>250_000_000{return Err("Spielpaket ist zu groß".into())}
         hash.update(&chunk);file.write_all(&chunk).await.map_err(|e|e.to_string())?;
+        if let Some(total)=expected {let pct=((bytes as u64).saturating_mul(75)/total).min(75) as u8;
+          if pct>=next_progress {emit_install(&app,&game_id,"active",Some(pct),"Spielpaket wird heruntergeladen");next_progress=pct.saturating_add(4);}
+        }
       }
       file.flush().await.map_err(|e|e.to_string())?;drop(file);
       let digest=hash.finalize().iter().map(|b|format!("{b:02x}")).collect::<String>();
       if digest!=sha256.to_ascii_lowercase(){return Err("SHA-256 stimmt nicht überein: Download verworfen".into())}
+      emit_install(&app,&game_id,"active",Some(80),"SHA-256 erfolgreich geprüft");
+      emit_install(&app,&game_id,"active",Some(84),"Spiel wird sicher entpackt");
       fs::create_dir_all(&stage).map_err(|e|e.to_string())?;
       let stage_dir=stage.clone();let scratch_file=scratch.clone();let requested_entry=entry.clone();
       tauri::async_runtime::spawn_blocking(move||extract_verified_zip(&scratch_file,&stage_dir,&requested_entry)).await.map_err(|e|e.to_string())??;
+      emit_install(&app,&game_id,"active",Some(94),"Neue Spielversion wird aktiviert");
       let live=game_root.join(&version);
       if live.exists(){
          return Err("Diese Spielversion ist bereits vorhanden. Eine identische Version wird aus Sicherheitsgründen nicht überschrieben; lade eine neue Versionsnummer hoch.".into());
@@ -295,10 +317,12 @@ async fn install_game_version(app:AppHandle, game_id:String, version:String, url
           return Err(format!("Neue Spielversion konnte nicht aktiviert werden: {err}"));
       }
       let _=fs::remove_file(&backup);
+      emit_install(&app,&game_id,"done",Some(100),"Spiel erfolgreich installiert");
       Ok(serde_json::json!({"ok":true,"version":version,"gameId":game_id}))
     }.await;
     let _=tokio::fs::remove_file(&scratch).await;
     let _=tokio::fs::remove_dir_all(&stage).await;
+    if let Err(ref reason)=result {emit_install(&app,&game_id,"error",None,reason)}
     result
 }
 
