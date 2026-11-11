@@ -1,5 +1,9 @@
 name: NovaLab Windows In-App Update Release QA
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/novalab-launcher-upgrade-release-qa.yml'
   workflow_run:
     workflows: ["NovaLab Studios Launcher v0.6 Windows / Rust"]
     types: [completed]
