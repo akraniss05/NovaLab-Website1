@@ -205,7 +205,10 @@ function renderDownload() {
       `<button class="secondary-button" data-action="pause-download" data-id="${escapeHTML(t.id)}">Pausieren</button>` :
       ['paused','failed'].includes(t.phase) ? `<button class="secondary-button" data-action="resume-download" data-id="${escapeHTML(t.id)}">${t.phase === 'failed'?'Erneut versuchen':'Fortsetzen'}</button>` : '';
     const cancel = t.phase === 'complete' ? '' : `<button class="secondary-button" data-action="cancel-download" data-id="${escapeHTML(t.id)}">Abbrechen</button>`;
-    return `<article class="download-task"><div class="download-task-head"><strong>${escapeHTML(t.title)}</strong><span>${escapeHTML(phaseLabel(t.phase))} · v${escapeHTML(t.version)}</span></div><div class="progress-track"><div class="progress-fill" style="width:${Math.max(0,Math.min(100,t.percent || 0))}%"></div></div><p class="hint">${readableSize(t.bytes)}${t.total ? ' / ' + readableSize(t.total) : ''} · ${readableSize(t.speed)}/s · ${readableTime(t.eta)} verbleibend</p>${t.error ? `<p class="download-error">${escapeHTML(t.error)}</p>` : ''}<div class="download-task-actions">${buttons}${cancel}</div></article>`;
+    const queueControls=t.phase==='queued'
+      ? `<button class="secondary-button" title="Download nach oben verschieben" data-action="move-download" data-direction="-1" data-id="${escapeHTML(t.id)}">↑</button><button class="secondary-button" title="Download nach unten verschieben" data-action="move-download" data-direction="1" data-id="${escapeHTML(t.id)}">↓</button>`
+      : '';
+    return `<article class="download-task"><div class="download-task-head"><strong>${escapeHTML(t.title)}</strong><span>${escapeHTML(phaseLabel(t.phase))} · v${escapeHTML(t.version)}</span></div><div class="progress-track"><div class="progress-fill" style="width:${Math.max(0,Math.min(100,t.percent || 0))}%"></div></div><p class="hint">${readableSize(t.bytes)}${t.total ? ' / ' + readableSize(t.total) : ''} · ${readableSize(t.speed)}/s · ${readableTime(t.eta)} verbleibend</p>${t.error ? `<p class="download-error">${escapeHTML(t.error)}</p>` : ''}<div class="download-task-actions">${queueControls}${buttons}${cancel}</div></article>`;
   }).join('') : '<p class="hint">Noch keine Downloads gestartet. Wähle im Store ein verfügbares Spiel aus.</p>';
 }
 function renderUpdateWidgets() {
@@ -292,6 +295,11 @@ async function act(action, id, element) {
   if (action === 'verify-game') { const x=await invoke('verify-game',id); if(x) toast(x.message); }
   if (action === 'open-game-folder') await invoke('open-game-folder',id);
   if (['pause-download','resume-download','cancel-download'].includes(action)) { const x=await invoke(action,id); if(x) { const snapshot=await api.invoke('get-state'); state.downloads=snapshot.downloads; renderDownload(); } }
+  if (action==='move-download') {
+    const direction=Number(element?.dataset.direction);
+    const moved=await invoke('move-download',{id,direction});
+    if(moved?.ok){const snapshot=await api.invoke('get-state');state.downloads=snapshot.downloads;renderDownload();}
+  }
   if (action === 'choose-install-folder') { const x=await invoke('choose-install-folder'); if(x && !x.canceled) {state.settings.installRoot=x.root;renderSettings();toast('Speicherort für zukünftige Installationen aktualisiert.');} }
   if (action === 'library-mode') { libraryMode=id; renderLibrary(); }
   if (action === 'library-sort') { librarySort=id; renderLibrary(); }
