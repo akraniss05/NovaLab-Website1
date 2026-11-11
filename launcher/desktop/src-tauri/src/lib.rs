@@ -326,66 +326,173 @@ async fn install_game_version(app:AppHandle, game_id:String, version:String, url
     result
 }
 
-// The launcher can check its own GitHub Releases and install an update without
-// making the user browse to the project website. Only official repository
-// release assets are considered; every downloaded installer must match the
-// digest supplied by GitHub's authenticated API response.
+// NovaLab updater v0.6. Fetch only official releases, validate asset digests,
+// and hand over the installer after Tauri has exited, so installed files are
+// never replaced while the app is still running.
+fn parse_launcher_version(value: &str) -> Option<(u64,u64,u64)> {
+    let parts=value.split('.').collect::<Vec<_>>();
+    if parts.len()!=3 { return None; }
+    Some((parts[0].parse().ok()?,parts[1].parse().ok()?,parts[2].parse().ok()?))
+}
+static LAUNCHER_UPDATING: AtomicBool=AtomicBool::new(false);
+struct UpdateGuard;
+impl Drop for UpdateGuard { fn drop(&mut self){LAUNCHER_UPDATING.store(false,Ordering::Release);} }
+fn emit_launcher_update(app:&AppHandle,status:&str,percent:Option<u8>,message:&str){
+    let _=app.emit("novalab:launcher-update-progress",Progress {
+        id:"launcher".into(),status:status.into(),percent,speed:None,
+        message:Some(message.into()),path:None
+    });
+}
 async fn available_launcher_update() -> Result<Option<serde_json::Value>,String> {
-    let client=reqwest::Client::builder().timeout(std::time::Duration::from_secs(20)).build().map_err(|e|e.to_string())?;
-    let data:serde_json::Value=client.get("https://api.github.com/repos/akraniss05/NovaLab-Website1/releases?per_page=20")
-        .header("User-Agent","NovaLab-Studios-Launcher").send().await.map_err(|e|e.to_string())?
-        .error_for_status().map_err(|e|e.to_string())?.json().await.map_err(|e|e.to_string())?;
-    let releases=data.as_array().ok_or("Keine gültige Release-Liste")?;
+    let client=reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(18))
+        .build().map_err(|e|e.to_string())?;
+    let response=client.get("https://api.github.com/repos/akraniss05/NovaLab-Website1/releases?per_page=25")
+        .header("User-Agent","NovaLab-Studios-Launcher/0.6")
+        .header("Accept","application/vnd.github+json")
+        .send().await.map_err(|e|format!("Update-Server nicht erreichbar: {e}"))?
+        .error_for_status().map_err(|e|format!("GitHub Releases nicht erreichbar: {e}"))?;
+    let releases:serde_json::Value=response.json().await.map_err(|e|e.to_string())?;
+    let releases=releases.as_array().ok_or("Ungültige GitHub Release-Liste")?;
     let current=env!("CARGO_PKG_VERSION");
-    fn parse(v:&str)->Option<(u64,u64,u64)>{
-       let a=v.split('.').collect::<Vec<_>>();if a.len()!=3{return None}
-       Some((a[0].parse().ok()?,a[1].parse().ok()?,a[2].parse().ok()?))
+    let current_num=parse_launcher_version(current).ok_or("Ungültige installierte Version")?;
+    let mut candidate: Option<((u64,u64,u64),serde_json::Value)>=None;
+    for release in releases {
+        if release.get("draft").and_then(|x|x.as_bool())==Some(true){continue;}
+        let tag=release.get("tag_name").and_then(|v|v.as_str()).unwrap_or("");
+        let Some(version)=tag.strip_prefix("novalab-launcher-v").and_then(|v|v.strip_suffix("-alpha")) else {continue};
+        let Some(number)=parse_launcher_version(version) else {continue};
+        if number<=current_num||candidate.as_ref().is_some_and(|(best,_)|number<=*best){continue}
+        let Some(asset)=release.get("assets").and_then(|x|x.as_array()).and_then(|items|items.iter().find(|a|
+            a.get("name").and_then(|x|x.as_str()).is_some_and(|name|
+                name.starts_with("NovaLab.Studios.Launcher_") && name.ends_with("_x64-setup.exe")
+            )
+        )) else {continue};
+        let url=asset.get("browser_download_url").and_then(|x|x.as_str()).unwrap_or("");
+        if !url.starts_with(&format!("https://github.com/akraniss05/NovaLab-Website1/releases/download/{tag}/")){continue;}
+        let digest=asset.get("digest").and_then(|x|x.as_str()).unwrap_or("");
+        let checksum=digest.strip_prefix("sha256:").unwrap_or("");
+        if checksum.len()!=64||!checksum.bytes().all(|b|b.is_ascii_hexdigit()){continue;}
+        let size=asset.get("size").and_then(|x|x.as_u64()).unwrap_or(0);
+        if !(100_000..=180_000_000).contains(&size){continue;}
+        let notes=release.get("body").and_then(|x|x.as_str()).unwrap_or("");
+        candidate=Some((number,serde_json::json!({
+            "available":true,"version":version,"currentVersion":current,
+            "url":url,"digest":digest,"bytes":size,
+            "notes":notes.chars().take(1000).collect::<String>(),
+            "publishedAt":release.get("published_at")
+        })));
     }
-    let Some(current_num)=parse(current) else {return Err("Ungültige Launcher-Version".into())};
-    let mut candidate:Option<( (u64,u64,u64),serde_json::Value)>=None;
-    for release in releases{
-       let tag=release.get("tag_name").and_then(|v|v.as_str()).unwrap_or("");
-       let Some(version)=tag.strip_prefix("novalab-launcher-v").and_then(|v|v.strip_suffix("-alpha")) else{continue};
-       let Some(num)=parse(version) else {continue};
-       if num<=current_num || candidate.as_ref().is_some_and(|(best,_)|num<=*best){continue}
-       let Some(asset)=release.get("assets").and_then(|x|x.as_array()).and_then(|a|a.iter().find(|x|x.get("name").and_then(|v|v.as_str()).is_some_and(|s|s.starts_with("NovaLab.")&&s.ends_with("_x64-setup.exe"))))else{continue};
-       let url=asset.get("browser_download_url").and_then(|v|v.as_str()).unwrap_or("");
-       if !url.starts_with(&format!("https://github.com/akraniss05/NovaLab-Website1/releases/download/{tag}/")){continue}
-       let digest=asset.get("digest").and_then(|v|v.as_str()).unwrap_or("");
-       candidate=Some((num,serde_json::json!({"available":true,"version":version,"url":url,"digest":digest,"notes":release.get("name"),"currentVersion":current})));
-    }
-    Ok(candidate.map(|(_,v)|v))
+    Ok(candidate.map(|(_,value)|value))
 }
 #[tauri::command]
 async fn check_launcher_update() -> Result<serde_json::Value,String> {
-    Ok(available_launcher_update().await?.unwrap_or(serde_json::json!({"available":false,"currentVersion":env!("CARGO_PKG_VERSION")})))
+    Ok(available_launcher_update().await?.unwrap_or(serde_json::json!({
+        "available":false,"currentVersion":env!("CARGO_PKG_VERSION")
+    })))
+}
+#[cfg(target_os="windows")]
+fn spawn_installer_after_exit(path:&Path) -> Result<(),String> {
+    use std::os::windows::process::CommandExt;
+    // Controlled path, single-quoted and escaped for PowerShell. No parameters
+    // are accepted from web content; only our checksum-verified staged installer.
+    let safe=path.to_string_lossy().replace('\'',"''");
+    let command=format!(
+        "$ErrorActionPreference='Stop'; Start-Sleep -Seconds 2; \
+         $installer='{safe}'; \
+         if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) {{ exit 2 }}; \
+         Start-Process -FilePath $installer -Wait"
+    );
+    Command::new("powershell.exe")
+        .arg("-NoProfile").arg("-NonInteractive")
+        .arg("-WindowStyle").arg("Hidden")
+        .arg("-Command").arg(command)
+        .creation_flags(0x08000000)
+        .spawn().map_err(|e|format!("Updater konnte nicht gestartet werden: {e}"))?;
+    Ok(())
 }
 #[tauri::command]
-async fn install_launcher_update() -> Result<serde_json::Value,String> {
-    use sha2::{Sha256,Digest};
-    let info=available_launcher_update().await?.ok_or("Keine neuere Launcher-Version gefunden")?;
-    let url=info.get("url").and_then(|v|v.as_str()).ok_or("Release-Link fehlt")?;
-    let digest=info.get("digest").and_then(|v|v.as_str()).unwrap_or("");
-    let checksum=digest.strip_prefix("sha256:").ok_or("Release enthält noch keine überprüfbare SHA-256-Prüfsumme. Update wird aus Sicherheitsgründen nicht ausgeführt.")?;
-    if checksum.len()!=64||!checksum.bytes().all(|b|b.is_ascii_hexdigit()){return Err("Ungültige Prüfsumme".into())}
-    let client=reqwest::Client::builder().timeout(std::time::Duration::from_secs(180)).redirect(reqwest::redirect::Policy::limited(4)).build().map_err(|e|e.to_string())?;
-    let mut response=client.get(url).send().await.map_err(|e|e.to_string())?.error_for_status().map_err(|e|e.to_string())?;
-    if response.content_length().unwrap_or(0)>180_000_000{return Err("Installer zu groß".into())}
-    let target=std::env::temp_dir().join(format!("novalab-launcher-update-{}.exe",Uuid::new_v4()));
-    let result:Result<(),String>=async{
+async fn install_launcher_update(app:AppHandle) -> Result<serde_json::Value,String> {
+    use sha2::{Digest,Sha256};
+    if LAUNCHER_UPDATING.compare_exchange(false,true,Ordering::AcqRel,Ordering::Acquire).is_err() {
+        return Err("Ein Launcher-Update wird bereits heruntergeladen.".into());
+    }
+    let _guard=UpdateGuard;
+    emit_launcher_update(&app,"checking",Some(0),"Prüfe offizielle NovaLab Releases");
+    let info=available_launcher_update().await?.ok_or("Dein Launcher ist bereits aktuell.")?;
+    let url=info["url"].as_str().ok_or("Ungültiger Downloadlink")?;
+    let digest=info["digest"].as_str().ok_or("Prüfsumme fehlt")?;
+    let checksum=digest.strip_prefix("sha256:").ok_or("Keine SHA-256-Prüfsumme")?;
+    let expected=info["bytes"].as_u64().ok_or("Dateigröße fehlt")?;
+    let version=info["version"].as_str().ok_or("Versionsnummer fehlt")?.to_owned();
+    let client=reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300))
+        .redirect(reqwest::redirect::Policy::limited(5))
+        .build().map_err(|e|e.to_string())?;
+    let mut response=client.get(url).send().await.map_err(|e|e.to_string())?
+        .error_for_status().map_err(|e|e.to_string())?;
+    if response.content_length().is_some_and(|size|size>180_000_000||size!=expected) {
+        return Err("Unerwartete Größe des Update-Installers".into());
+    }
+    let folder=app.path().app_cache_dir().map_err(|e|e.to_string())?.join("updates");
+    tokio::fs::create_dir_all(&folder).await.map_err(|e|e.to_string())?;
+    let target=folder.join(format!("NovaLab-{}-{}.exe",version,Uuid::new_v4()));
+    let download:Result<(),String>=async {
         let mut file=tokio::fs::File::create(&target).await.map_err(|e|e.to_string())?;
-        let mut count=0_usize;let mut hash=Sha256::new();
-        while let Some(chunk)=response.chunk().await.map_err(|e|e.to_string())? {
-            count+=chunk.len();if count>180_000_000{return Err("Installer zu groß".into())}
-            hash.update(&chunk);file.write_all(&chunk).await.map_err(|e|e.to_string())?;
+        let mut digest=Sha256::new();
+        let mut total=0_u64;
+        emit_launcher_update(&app,"downloading",Some(0),"Update wird heruntergeladen");
+        while let Some(chunk)=response.chunk().await.map_err(|e|e.to_string())?{
+            total=total.saturating_add(chunk.len() as u64);
+            if total>180_000_000||total>expected{return Err("Download ist größer als erwartet".into());}
+            digest.update(&chunk);
+            file.write_all(&chunk).await.map_err(|e|e.to_string())?;
+            let percent=((total.saturating_mul(100))/expected).min(100) as u8;
+            emit_launcher_update(&app,"downloading",Some(percent),"Launcher-Installer wird geladen");
         }
-        file.flush().await.map_err(|e|e.to_string())?;drop(file);
-        let actual=hash.finalize().iter().map(|b|format!("{b:02x}")).collect::<String>();
-        if actual!=checksum.to_ascii_lowercase(){return Err("Update-Prüfsumme stimmt nicht; Ausführung blockiert".into())}
-        Command::new(&target).spawn().map_err(|e|format!("Installer konnte nicht gestartet werden: {e}"))?;
+        file.flush().await.map_err(|e|e.to_string())?;
+        drop(file);
+        if total!=expected{return Err("Download unvollständig. Update wird nicht gestartet.".into())}
+        emit_launcher_update(&app,"verifying",Some(100),"Prüfe SHA-256-Integrität");
+        let actual=digest.finalize().iter().map(|b|format!("{b:02x}")).collect::<String>();
+        if actual!=checksum.to_ascii_lowercase(){return Err("Prüfsumme stimmt nicht: Update gesperrt".into())}
         Ok(())
     }.await;
-    if result.is_err(){let _=tokio::fs::remove_file(&target).await;}
-    result?;
-    Ok(serde_json::json!({"ok":true,"version":info["version"],"message":"Installationsprogramm wurde gestartet. Windows kann weiterhin eine Sicherheitswarnung anzeigen."}))
+    if let Err(e)=download {
+        let _=tokio::fs::remove_file(&target).await;
+        emit_launcher_update(&app,"error",None,&e);
+        return Err(e);
+    }
+    emit_launcher_update(&app,"installing",Some(100),"Launcher wird geschlossen; Windows-Installer startet gleich");
+    #[cfg(target_os="windows")]
+    {
+        if let Err(error)=spawn_installer_after_exit(&target) {
+            emit_launcher_update(&app,"error",None,&error);
+            return Err(error);
+        }
+        // NSIS must not replace files of a still-running Tauri executable.
+        // Run a separate Windows handoff process and exit before install begins.
+        app.exit(0);
+    }
+    #[cfg(not(target_os="windows"))]
+    return Err("Launcher-Updates werden nur unter Windows unterstützt.".into());
+    #[allow(unreachable_code)]
+    Ok(serde_json::json!({"ok":true,"version":version,"message":"Installer wird nach dem Beenden gestartet."}))
+}
+#[cfg(test)]
+mod updater_tests {
+    use super::parse_launcher_version;
+    #[test]
+    fn only_strict_three_part_versions(){
+        assert_eq!(parse_launcher_version("0.5.0"),Some((0,5,0)));
+        assert_eq!(parse_launcher_version("0.6.0"),Some((0,6,0)));
+        assert!(parse_launcher_version("0.6").is_none());
+        assert!(parse_launcher_version("garbage").is_none());
+        assert!(parse_launcher_version("0.6.0.1").is_none());
+    }
+    #[test]
+    fn proper_numeric_ordering(){
+        assert!(parse_launcher_version("0.10.0")>parse_launcher_version("0.9.9"));
+        assert!(parse_launcher_version("1.0.0")>parse_launcher_version("0.99.99"));
+    }
 }
