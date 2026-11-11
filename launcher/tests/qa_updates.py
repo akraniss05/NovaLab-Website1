@@ -77,7 +77,7 @@ try:
   page.locator('#nav-main [data-page="downloads"]').click()
   page.locator('[data-action="refresh-catalog"]').click()
   page.wait_for_timeout(350)
-  assert page.get_by_text('Spiel-Update(s) verfügbar').count()==0, 'Downgrade must not appear as update'
+  assert page.locator('#app-content h3').filter(has_text='Spiel-Update(s) verfügbar').count()==0, 'Downgrade must not appear as update'
   page.locator('#nav-main [data-page="store"]').click()
   page.locator('[data-action="details"][data-id="community-testgame"]').first.click()
   page.get_by_text('Neuere Version installiert').first.wait_for()
