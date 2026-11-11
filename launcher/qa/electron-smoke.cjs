@@ -9,6 +9,14 @@ const path=require('node:path');
 const fs=require('node:fs/promises');
 const {_electron:electron}=require('playwright');
 
+async function reliableScreenshot(page,filename) {
+  // Rare Xvfb/Chromium GPU races cause a one-off Page.captureScreenshot error.
+  // Still fail the suite if both captures fail; never skip screenshot assertions.
+  for(let i=0;i<2;i++){
+    try {await page.screenshot({path:filename,animations:'disabled',timeout:15000});return;}
+    catch(error){if(i===1)throw error;await new Promise(resolve=>setTimeout(resolve,500));}
+  }
+}
 (async()=>{
  const output=path.resolve(__dirname,'screenshots');
  await fs.mkdir(output,{recursive:true});
@@ -29,7 +37,7 @@ const {_electron:electron}=require('playwright');
   assert.match(await page.locator('.hero-caption').innerText(),/JETZT VERFÜGBAR|PROJEKTSTATUS/,'featured caption must reflect actual featured product');
   assert.doesNotMatch(await page.locator('.hero-counter').innerText(),/01\s*\/\s*04/,'placeholder carousel counter must be removed');
   assert.ok((await page.locator('#libraryCount').innerText()).length>0);
-  await page.screenshot({path:path.join(output,'01-home.png'),animations:'disabled',fullPage:false});
+  await reliableScreenshot(page,path.join(output,'01-home.png'));
 
   // Ctrl+K invokes real global search, which must open Store.
   await page.keyboard.press('Control+k');
@@ -38,7 +46,7 @@ const {_electron:electron}=require('playwright');
   await page.locator('#page-discover').waitFor({state:'visible'});
   const results=await page.locator('#discoverGrid .project-card').count();
   assert.equal(results,1,'real filter must find exactly the bundled Orbit Dash');
-  await page.screenshot({path:path.join(output,'02-store-search.png'),animations:'disabled'});
+  await reliableScreenshot(page,path.join(output,'02-store-search.png'));
 
   // Add non-installed item to local collection. No remote backend mutation.
   await page.locator('#discoverGrid [data-action="details"]').first().click();
@@ -52,16 +60,16 @@ const {_electron:electron}=require('playwright');
   assert.equal(await page.locator('#libraryCount').innerText(),'1','saved but not installed item is part of the library');
   await page.locator('#page-library [data-action="library-mode"][data-id="not-installed"]').click();
   assert.ok(await libraryCard.count()>=1,'user-saved non-installed game must appear in filter');
-  await page.screenshot({path:path.join(output,'03-library.png'),animations:'disabled'});
+  await reliableScreenshot(page,path.join(output,'03-library.png'));
 
   await page.locator('[data-page="downloads"]').first().click();
   await page.locator('#page-downloads').waitFor({state:'visible'});
   assert.equal(await page.locator('#topDownloadsCount').isVisible(),false);
-  await page.screenshot({path:path.join(output,'04-downloads-idle.png'),animations:'disabled'});
+  await reliableScreenshot(page,path.join(output,'04-downloads-idle.png'));
 
   await page.setViewportSize({width:1024,height:768});
   await page.locator('[data-page="home"]').first().click();
-  await page.screenshot({path:path.join(output,'05-compact.png'),animations:'disabled'});
+  await reliableScreenshot(page,path.join(output,'05-compact.png'));
   const rect=await page.locator('#globalSearch').boundingBox();
   assert.ok(rect && rect.width>80,'compact search must remain reachable');
   await page.setViewportSize({width:900,height:620});
@@ -69,7 +77,7 @@ const {_electron:electron}=require('playwright');
   assert.ok(compactBox && compactBox.x+compactBox.width<=901,'window controls must fit minimum supported launcher width');
   const compactSearch=await page.locator('#globalSearch').boundingBox();
   assert.ok(compactSearch && compactSearch.width>70,'global search must remain usable at 900px');
-  await page.screenshot({path:path.join(output,'06-minimum-window.png'),animations:'disabled'});
+  await reliableScreenshot(page,path.join(output,'06-minimum-window.png'));
   await page.locator('[data-page="account"]').first().click();
   await page.locator('#page-account').waitFor({state:'visible'});
   assert.ok(await page.locator('#loginForm').isVisible(),'login form must be reachable');
