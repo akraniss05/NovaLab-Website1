@@ -11,13 +11,33 @@
   },
   "app": {
     "withGlobalTauri": true,
-    "windows": [{"title":"NovaLab Studios Launcher", "width":1470, "height":910, "minWidth":900, "minHeight":640, "backgroundColor":"#160b25"}],
-    "security": {"csp": "default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https:; object-src 'none'; base-uri 'self'; frame-src 'none'"}
+    "windows": [
+      {
+        "title": "NovaLab Studios Launcher",
+        "width": 1470,
+        "height": 910,
+        "minWidth": 900,
+        "minHeight": 640,
+        "backgroundColor": "#160b25"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' https: data:; media-src 'self' https: blob:; font-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://ekgxotvvhkmeuxvuwbei.supabase.co; object-src 'none'; base-uri 'self'; frame-src 'none'"
+    }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
-    "icon": ["icons/icon.png", "icons/icon.ico"],
-    "windows": {"nsis": {"displayLanguageSelector": false}}
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "displayLanguageSelector": false
+      }
+    }
   }
 }
