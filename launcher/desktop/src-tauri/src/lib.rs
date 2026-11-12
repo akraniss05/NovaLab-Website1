@@ -434,6 +434,11 @@ fn emit_launcher_update(app:&AppHandle,status:&str,percent:Option<u8>,message:&s
         message:Some(message.into()),path:None
     });
 }
+// Reject cross-version installer assets placed under an older GitHub release tag.
+fn installer_matches_release(name:&str,version:&str)->bool {
+    parse_launcher_version(version).is_some()
+        && name==format!("NovaLab.Studios.Launcher_{version}_x64-setup.exe")
+}
 async fn available_launcher_update() -> Result<Option<serde_json::Value>,String> {
     let client=reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(18))
@@ -456,7 +461,7 @@ async fn available_launcher_update() -> Result<Option<serde_json::Value>,String>
         if number<=current_num||candidate.as_ref().is_some_and(|(best,_)|number<=*best){continue}
         let Some(asset)=release.get("assets").and_then(|x|x.as_array()).and_then(|items|items.iter().find(|a|
             a.get("name").and_then(|x|x.as_str()).is_some_and(|name|
-                name.starts_with("NovaLab.Studios.Launcher_") && name.ends_with("_x64-setup.exe")
+                installer_matches_release(name,version)
             )
         )) else {continue};
         let url=asset.get("browser_download_url").and_then(|x|x.as_str()).unwrap_or("");
@@ -582,6 +587,14 @@ mod updater_tests {
         assert!(parse_launcher_version("0.6").is_none());
         assert!(parse_launcher_version("garbage").is_none());
         assert!(parse_launcher_version("0.6.0.1").is_none());
+    }
+    #[test]
+    fn never_choose_a_different_version_from_the_release(){
+        assert!(super::installer_matches_release("NovaLab.Studios.Launcher_0.9.0_x64-setup.exe","0.9.0"));
+        assert!(!super::installer_matches_release("NovaLab.Studios.Launcher_0.8.0_x64-setup.exe","0.7.0"));
+        assert!(!super::installer_matches_release("NovaLab.Studios.Launcher_0.7.0_x64-setup.exe","0.8.0"));
+        assert!(!super::installer_matches_release("NovaLab.Studios.Launcher_0.8.0_x86-setup.exe","0.8.0"));
+        assert!(!super::installer_matches_release("NovaLab.Studios.Launcher_0.8.0_x64-setup.exe","invalid"));
     }
     #[test]
     fn proper_numeric_ordering(){
