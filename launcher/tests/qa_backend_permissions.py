@@ -28,4 +28,13 @@ for endpoint in ["novalab-launcher-api/catalog","novalab-studio-api/catalog"]:
  with urllib.request.urlopen(BASE+endpoint,timeout=20) as response:
   payload=json.loads(response.read(3_000_000).decode())
  assert isinstance(payload.get("games"),list),f"Catalog malformed: {endpoint}"
- print(f"PASS public {endpoint}: {len(payload['games'])} games")
+ for game in payload["games"]:
+  assert isinstance(game.get("id"),str) and game["id"].startswith("community-"),f"Invalid public game id in {endpoint}"
+  assert isinstance(game.get("title"),str),f"Missing title in {endpoint}"
+  release=game.get("release")
+  if release:
+   import re
+   assert re.fullmatch(r"\d+\.\d+\.\d+",str(release.get("version",""))),f"Bad release version: {game['id']}"
+   assert re.fullmatch(r"[a-f0-9]{64}",str(release.get("sha256",""))),f"Bad SHA-256: {game['id']}"
+   assert str(release.get("url","")).startswith("https://"),f"Unsecured installer URL: {game['id']}"
+ print(f"PASS public {endpoint}: {len(payload['games'])} valid catalog games")
