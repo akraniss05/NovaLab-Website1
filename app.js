@@ -82,13 +82,13 @@ async function loadData(strict=false){let loaded=false;try{const result=await ap
 if(!loaded&&strict)return "error";
 if(!loaded){catalogRevision=null;try{const r=await fetch("./data/projects.json?v=10",{cache:"no-store",signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error("HTTP "+r.status);const data=await r.json();if(!Array.isArray(data))throw Error("Invalid JSON");projects=data.map((p,i)=>verifyOfficialProject(normalize(p,i)))}catch(e){console.info("Using default projects",e)}}
 publishedSnapshot=snapshot();const notice=$("catalogNotice");if(notice){notice.hidden=loaded;notice.textContent=loaded?"":"Der aktuelle Projektkatalog ist momentan nicht erreichbar. Hier werden möglicherweise ältere Informationen angezeigt."}renderProjects();if(location.hash.startsWith("#project/"))route();return loaded?"backend":"fallback"}
-function renderAdminList(){const root=$("adminRows");root.replaceChildren();$("dashboardProjects").textContent=String(projects.length);projects.forEach(p=>{const row=el("div","admin-row");const label=el("div");label.append(el("b","",p.title),el("small","",CAT[p.category]+" · "+p.status));const acts=el("div","admin-row-actions");let edit=el("button","","Bearbeiten");edit.type="button";edit.onclick=()=>editProject(p.id);let del=el("button","","Löschen");del.type="button";del.onclick=()=>{if(confirm("Projekt „"+p.title+"“ wirklich aus der Liste entfernen?")){projects=projects.filter(x=>x.id!==p.id);pendingFiles.delete(p.id);if(selectedId===p.id){selectedId="";formDirty=false;$("projectForm").reset();$("fId").value="";$("formTitle").textContent="Projekt hinzufügen";clearMediaPreviews()}dirty=true;renderProjects();showQueuedUploads();state("Löschung vorgemerkt – noch nicht veröffentlicht.")}};acts.append(edit,del);row.append(label,acts);root.append(row)})}
+function renderAdminList(){const root=$("adminRows");root.replaceChildren();$("dashboardProjects").textContent=String(projects.length);projects.forEach(p=>{const row=el("div","admin-row");const label=el("div");label.append(el("b","",p.title),el("small","",CAT[p.category]+" · "+p.status));const acts=el("div","admin-row-actions");let edit=el("button","","Bearbeiten");edit.type="button";edit.disabled=publishing;edit.onclick=()=>editProject(p.id);let del=el("button","","Löschen");del.type="button";del.disabled=publishing;del.onclick=()=>{if(publishing)return;if(confirm("Projekt „"+p.title+"“ wirklich aus der Liste entfernen?")){projects=projects.filter(x=>x.id!==p.id);pendingFiles.delete(p.id);if(selectedId===p.id){selectedId="";formDirty=false;$("projectForm").reset();$("fId").value="";$("formTitle").textContent="Projekt hinzufügen";clearMediaPreviews()}dirty=true;renderProjects();showQueuedUploads();state("Löschung vorgemerkt – noch nicht veröffentlicht.")}};acts.append(edit,del);row.append(label,acts);root.append(row)})}
 function confirmEditorSwitch(){return !formDirty||confirm("Ungespeicherte Änderungen im Projektformular verwerfen?")}
-function editProject(id){const p=projects.find(x=>x.id===id);if(!p||!confirmEditorSwitch())return;selectedId=id;formDirty=false;$("fId").value=id;$("fTitle").value=p.title;$("fSummary").value=p.summary;$("fDescription").value=p.description;$("fCategory").value=p.category;$("fStatus").value=p.status;$("fLink").value=p.link;$("fTags").value=p.tags.join(", ");$("fCoverUrl").value=p.cover;$("fGallery").value=p.gallery.join("\n");$("fVideoUrl").value=p.video;$("fFeatured").checked=p.featured;
+function editProject(id){if(publishing)return;const p=projects.find(x=>x.id===id);if(!p||!confirmEditorSwitch())return;selectedId=id;formDirty=false;$("fId").value=id;$("fTitle").value=p.title;$("fSummary").value=p.summary;$("fDescription").value=p.description;$("fCategory").value=p.category;$("fStatus").value=p.status;$("fLink").value=p.link;$("fTags").value=p.tags.join(", ");$("fCoverUrl").value=p.cover;$("fGallery").value=p.gallery.join("\n");$("fVideoUrl").value=p.video;$("fFeatured").checked=p.featured;
 for(const id of ["fCoverFile","fGalleryFiles","fVideoFile"])$(id).value="";clearMediaPreviews();$("formTitle").textContent="Projekt bearbeiten";state("Du bearbeitest „"+p.title+"“. Änderungen werden erst nach dem Veröffentlichen öffentlich.");$("editorCard").scrollIntoView({behavior:"smooth",block:"start"})}
-function newProject(){if(!confirmEditorSwitch())return;selectedId="";formDirty=false;$("projectForm").reset();clearMediaPreviews();$("fId").value="";$("fFeatured").checked=true;$("formTitle").textContent="Projekt hinzufügen";state("Neues Projekt erstellen und anschließend veröffentlichen.");$("editorCard").scrollIntoView({behavior:"smooth",block:"start"})}
+function newProject(){if(publishing||!confirmEditorSwitch())return;selectedId="";formDirty=false;$("projectForm").reset();clearMediaPreviews();$("fId").value="";$("fFeatured").checked=true;$("formTitle").textContent="Projekt hinzufügen";state("Neues Projekt erstellen und anschließend veröffentlichen.");$("editorCard").scrollIntoView({behavior:"smooth",block:"start"})}
 function formError(msg){state(msg,true);return false}
-function saveDraft(e){e.preventDefault();const title=text($("fTitle").value,90),summary=text($("fSummary").value,250);if(!title||!summary)return formError("Titel und Kurzbeschreibung fehlen.");
+function saveDraft(e){e.preventDefault();if(publishing)return false;const title=text($("fTitle").value,90),summary=text($("fSummary").value,250);if(!title||!summary)return formError("Titel und Kurzbeschreibung fehlen.");
 let link=text($("fLink").value);if(link&&!safeLink(link,true))return formError("Projekt-Link: bitte eine HTTPS-URL oder #code, #music etc. eintragen.");
 const coverInput=text($("fCoverUrl").value);if(coverInput&&!safeMedia(coverInput))return formError("Bildlink muss mit https:// beginnen.");
 const videoInput=text($("fVideoUrl").value);if(videoInput&&!safeMedia(videoInput))return formError("Video-Link muss mit https:// beginnen.");
@@ -134,6 +134,7 @@ async function handleLogin(event){
  catch(e){authState(e.message,true)}finally{button.disabled=false}
 }
 async function logout(){
+ if(publishing)return;
  if((dirty||formDirty)&&!confirm("Nicht veröffentlichte Projektänderungen verwerfen und abmelden?"))return;
  const request=sessionToken?apiRequest("/logout",{method:"POST",body:{},authenticated:true}):null;
  clearSession();pendingFiles.clear();dirty=false;formDirty=false;selectedId="";projects=publishedSnapshot.map(p=>({...p,tags:[...p.tags],gallery:[...p.gallery]}));$("projectForm").reset();clearMediaPreviews();renderProjects();authState("Du wurdest abgemeldet.");
@@ -146,6 +147,7 @@ async function upload(file){
  const url=safeMedia(result.url);if(!url)throw Error("Der Server hat keinen gültigen Medienlink zurückgegeben.");return url;
 }
 async function publish(){
+ if(publishing)return;
  if(!sessionToken){state("Bitte zuerst als Administrator anmelden.",true);return}
  if(!catalogRevision){state("Der aktuelle Projektkatalog konnte nicht sicher geladen werden. Bitte zuerst „Projekte neu laden“ verwenden.",true);return}
  if(formDirty&&!saveDraft({preventDefault(){}}))return;
@@ -174,6 +176,7 @@ async function publish(){
  }catch(e){state("Veröffentlichung fehlgeschlagen: "+e.message,true)}finally{setPublishing(false)}
 }
 async function reload(){
+ if(publishing)return;
  if((dirty||formDirty)&&!confirm("Nicht gespeicherte Änderungen verwerfen?"))return;
  const source=await loadData(true);if(source!=="backend"){state("Backend nicht erreichbar – lokale Ersatzdaten angezeigt. Keine Live-Daten überschreiben.",true);return}
  dirty=false;formDirty=false;pendingFiles.clear();selectedId="";$("projectForm").reset();clearMediaPreviews();$("formTitle").textContent="Projekt hinzufügen";state("Öffentliche Projekte aus dem Backend neu geladen.");
