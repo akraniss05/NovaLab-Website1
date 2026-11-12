@@ -13,7 +13,7 @@ CATALOG={"games":[
   "entry":"qa.exe","sha256":"b"*64,"url":"https://example.org/qa.zip","size":1024}},
  {"id":"community-injection","title":"<img src=x onerror=window.__injected=true>",
   "summary":"<svg onload=window.__injected=true>","description":"Harmless literal attack sample",
-  "genre":"Action","developer":"QA","cover":"https://example.org/a%22%20onerror=x",
+  "genre":"\\\"><img src=x onerror=window.__injected=true>","developer":"QA","cover":"https://example.org/a%22%20onerror=x",
   "release":None}
 ]}
 MOCK_NATIVE="""(()=>{
@@ -85,6 +85,10 @@ try:
     page.evaluate("(section)=>{const n=document.querySelector('[data-page=\"'+section+'\"]');if(n)n.click()}",section)
     page.wait_for_timeout(30)
     assert page.locator("#app-content").inner_text().strip(),f"{name}: empty {section}"
+   # No unexpected full-page horizontal scrollbars on phone layouts.
+   if name=="mobile":
+    width=page.evaluate("document.documentElement.scrollWidth-window.innerWidth")
+    assert width<=3,f"Mobile UI overflows viewport horizontally by {width}px"
    assert not errors,(name,errors)
    page.screenshot(path=str(ROOT/"tests"/f"qa-deep-{name}.png"),full_page=False)
    print(f"PASS {name}: broken local data, denied backend, XSS escaping, search, 11 screens, native installed-state reconciliation")
