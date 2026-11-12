@@ -347,6 +347,21 @@ fn extract_verified_zip(bytes_path:&Path, dest:&Path, entry:&str)->Result<(),Str
     if !dest.join(entry).is_file(){return Err("Die angegebene Startdatei fehlt im ZIP".into())}
     Ok(())
 }
+// Stage a freshly SHA-256-verified release in place. A crashed/antivirus-damaged
+// directory for that version is moved out of the way, not silently reused.
+fn swap_verified_stage(stage:&Path,live:&Path)->Result<Option<PathBuf>,String> {
+    let stale=if live.exists(){
+        let parent=live.parent().ok_or("Ungültiger Installationsordner")?;
+        let old=parent.join(format!(".replaced-{}",Uuid::new_v4()));
+        fs::rename(live,&old).map_err(|e|format!("Beschädigte Vorgängerversion konnte nicht gesichert werden: {e}"))?;
+        Some(old)
+    }else{None};
+    if let Err(err)=fs::rename(stage,live){
+        if let Some(old)=&stale{let _=fs::rename(old,live);}
+        return Err(format!("Geprüftes Spielpaket konnte nicht aktiviert werden: {err}"));
+    }
+    Ok(stale)
+}
 #[tauri::command]
 async fn install_game_version(app:AppHandle, game_id:String, version:String, url:String, sha256:String, entry:String, game_format:String)->Result<serde_json::Value,String>{
     use sha2::{Sha256,Digest};
@@ -397,10 +412,13 @@ async fn install_game_version(app:AppHandle, game_id:String, version:String, url
       tauri::async_runtime::spawn_blocking(move||extract_verified_zip(&scratch_file,&stage_dir,&requested_entry)).await.map_err(|e|e.to_string())??;
       emit_install(&app,&game_id,"active",Some(94),"Neue Spielversion wird aktiviert");
       let live=game_root.join(&version);
-      if live.exists(){
-         return Err("Diese Spielversion ist bereits vorhanden. Eine identische Version wird aus Sicherheitsgründen nicht überschrieben; lade eine neue Versionsnummer hoch.".into());
+      // A healthy, already-installed version is immutable. An orphaned directory
+      // with no valid active manifest can be safely replaced after full verification.
+      let current_install=read_installed(&app,&game_id).ok();
+      if current_install.as_ref().is_some_and(|item|item.version==version){
+          return Err("Diese Version ist bereits installiert. Lade eine neuere Version hoch.".into());
       }
-      fs::rename(&stage,&live).map_err(|e|e.to_string())?;
+      let old_stale=swap_verified_stage(&stage,&live)?;
       let manifest=InstalledRelease{game_id:game_id.clone(),version:version.clone(),entry:entry.clone(),sha256:sha256.to_ascii_lowercase(),format:game_format.clone()};
       let staging_manifest=game_root.join("current.tmp.json");
       let current=game_root.join("current.json");
@@ -420,9 +438,11 @@ async fn install_game_version(app:AppHandle, game_id:String, version:String, url
       })();
       if let Err(reason)=activation{
           let _=fs::remove_dir_all(&live);
+          if let Some(old)=&old_stale{let _=fs::rename(old,&live);}
           let _=fs::remove_file(&staging_manifest);
           return Err(reason);
       }
+      if let Some(old)=old_stale{let _=fs::remove_dir_all(old);}
       let _=fs::remove_file(&backup);
       // Keep one previous release as a rollback fallback; evict older ones.
       if let Ok(dirs)=fs::read_dir(&game_root){
@@ -661,6 +681,25 @@ mod audit_tests {
         fn path(&self,name:&str)->PathBuf { self.0.join(name) }
     }
     impl Drop for Scratch { fn drop(&mut self){let _=fs::remove_dir_all(&self.0);} }
+    #[test]
+    fn replaces_stale_version_directory_without_losing_it_on_failure(){
+        let tmp=Scratch::new();
+        let stale=tmp.path("1.2.0");
+        let stage=tmp.path(".stage-test");
+        fs::create_dir_all(&stale).unwrap();
+        fs::write(stale.join("old.txt"),b"broken").unwrap();
+        fs::create_dir_all(&stage).unwrap();
+        fs::write(stage.join("index.html"),b"repaired").unwrap();
+        let old=super::swap_verified_stage(&stage,&stale).expect("verified stage can replace stale directory").unwrap();
+        assert_eq!(fs::read(stale.join("index.html")).unwrap(),b"repaired");
+        assert_eq!(fs::read(old.join("old.txt")).unwrap(),b"broken");
+
+        // An invalid source cannot replace an existing installation.
+        let non_existent=tmp.path("non-existent-stage");
+        let previous=fs::read(stale.join("index.html")).unwrap();
+        assert!(super::swap_verified_stage(&non_existent,&stale).is_err());
+        assert_eq!(fs::read(stale.join("index.html")).unwrap(),previous);
+    }
     #[test]
     fn rejects_malformed_game_versions() {
         for invalid in ["","1","1.0","1.0.0.0","1.0.x","../1","1..0","1.2.-3"," 1.2.3","1.2.3-beta"] {
