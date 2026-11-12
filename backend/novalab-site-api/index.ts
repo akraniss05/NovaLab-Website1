@@ -53,8 +53,11 @@ async function readBody(req:Request,max=260000){
   const size=Number(req.headers.get("content-length")||"0");
   if(size>max)throw new Error("Anfrage zu groß.");
   const raw=await req.text();
-  if(raw.length>max)throw new Error("Anfrage zu groß.");
-  return JSON.parse(raw);
+  if(enc.encode(raw).byteLength>max)throw new Error("Anfrage zu groß.");
+  let body:unknown;
+  try{body=JSON.parse(raw)}catch{throw new Error("Ungültiges JSON.")}
+  if(!body||typeof body!=="object"||Array.isArray(body))throw new Error("Ungültiges JSON.");
+  return body as Record<string,unknown>;
 }
 async function newSession(username:string, version:number){
   const head=b64url(enc.encode(JSON.stringify({typ:"JWT",alg:"HS256"})));
@@ -187,7 +190,7 @@ Deno.serve(async(req:Request)=>{
     if(req.method==="PUT"&&path==="/projects"){
       const body=await readBody(req,350000);
       if(!Array.isArray(body.projects)||body.projects.length>100)throw new Error("Ungültiger Projektkatalog.");
-      const items=body.projects.map((p:Record<string,unknown>,i:number)=>cleanProject(p,i));
+      const items=body.projects.map((p:unknown,i:number)=>{if(!p||typeof p!=="object"||Array.isArray(p))throw new Error("Ungültiger Projektkatalog.");return cleanProject(p as Record<string,unknown>,i)});
       const unique=new Set(items.map(p=>p.id));
       if(unique.size!==items.length)throw new Error("Projekt-IDs müssen eindeutig sein.");
       const {data:before,error:readError}=await db.from("novalab_site_projects").select("id,data,sort_order,updated_at").order("sort_order").order("id");
@@ -228,7 +231,7 @@ Deno.serve(async(req:Request)=>{
     return send(req,{error:"Route nicht gefunden."},404);
   }catch(error){
     console.error("NovaLab API error",error instanceof Error?error.message:"unexpected");
-    const message=error instanceof Error&&["Anfrage zu groß.","Ungültiger Projektkatalog.","Ungültige Projekt-ID.","Projektname und Beschreibung fehlen.","Projekt-IDs müssen eindeutig sein."].includes(error.message)?error.message:"Die Anfrage konnte nicht verarbeitet werden.";
+    const message=error instanceof Error&&["Anfrage zu groß.","Ungültiges JSON.","Ungültiger Projektkatalog.","Ungültige Projekt-ID.","Projektname und Beschreibung fehlen.","Projekt-IDs müssen eindeutig sein."].includes(error.message)?error.message:"Die Anfrage konnte nicht verarbeitet werden.";
     return send(req,{error:message},message==="Die Anfrage konnte nicht verarbeitet werden."?500:400);
   }
 });
