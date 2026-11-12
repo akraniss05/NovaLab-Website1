@@ -89,9 +89,9 @@ function cleanText(x:unknown,n=400){
 function safeURL(input:unknown, allowRoute=false){
   const s=cleanText(input,1200);
   if(!s)return "";
-  if(allowRoute&&/^#[a-z][a-z0-9/-]{1,75}$/i.test(s))return s;
+  if(allowRoute&&(/^#[a-z][a-z0-9/-]{0,75}$/i.test(s)||/^\.\/(?:[a-z0-9_-]+\/){0,4}[a-z0-9_-]+\.html(?:#[a-z0-9/-]+)?$/i.test(s)))return s;
+  if(/^\.\/assets\/(?:[a-z0-9_-]+\/){0,4}[a-z0-9._-]+\.(?:svg|png|jpe?g|webp|gif|mp4|webm)$/i.test(s))return s;
   try{const u=new URL(s);if(u.protocol==="https:"&&u.username===""&&u.password==="")return u.href}catch{}
-  if(/^\.\/assets\/uploads\/[a-zA-Z0-9._-]+$/.test(s))return s;
   return "";
 }
 function cleanProject(p: Record<string,unknown>,index:number){
