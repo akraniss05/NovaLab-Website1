@@ -33,7 +33,7 @@ required_ids={'mainNav','mobileMenu','introNovaLab','discoverNovaLab','projectGr
 assert required_ids <= parser.ids, f'missing ID: {required_ids-parser.ids}'
 assert not parser.duplicates, f'duplicate ids: {parser.duplicates}'
 assert '<script defer src="./app.js?v=15"></script>' in html
-assert '<link rel="stylesheet" href="./studio-v14.css?v=14">' in html
+assert '<link rel="stylesheet" href="./studio-v14.css?v=15">' in html
 assert 'Windows-Launcher herunterladen' in html
 assert 'NovaLab Code für Windows' in html
 assert 'NovaLab Studios' in html
