@@ -51,13 +51,3 @@ jobs:
           name: NovaLab-Website-v14-Desktop-Mobile-Screenshots
           path: assets/previews/*.png
           if-no-files-found: warn
-      - name: Echte Screenshots im Repo speichern
-        if: success() && github.ref == 'refs/heads/main'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add assets/previews/*.png
-          if ! git diff --cached --quiet; then
-            git commit -m "docs(site): real Chromium desktop and mobile screenshots [skip ci]"
-            git push origin HEAD:main
-          fi
