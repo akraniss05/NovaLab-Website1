@@ -1,84 +1,47 @@
-# NovaLab Studios Launcher – Rust Edition (Alpha 0.2)
+# NovaLab Studios Launcher – Rust/Tauri + Web
 
-**Zwei echte Projekte aus einer Codebasis:** ein Windows-Desktop-Launcher mit Rust/Tauri 2 und eine responsive HTML/CSS/JavaScript-App für Browser auf Handy und PC. Das Design ist dunkel mit Pink-/Violett-Akzenten. Keine Electron-Laufzeit und kein großes JavaScript-Framework.
+NovaLab Studios hat **zwei Oberflächen aus derselben Codebasis**: eine installierbare Windows-App mit Rust/Tauri 2 sowie einen mobilen und Desktop-Browser-Test unter [NovaLab Launcher](https://akraniss05.github.io/NovaLab-Website1/launcher/).
 
-## Wichtiger Unterschied zwischen Demo und fertigem Spiele-Store
+Der **native Teil ist Rust**, die Oberfläche bleibt HTML/CSS/JavaScript in der Windows-WebView. Electron wird nicht verwendet. Ein kleiner Installer garantiert weder eine bestimmte Startzeit noch eine feste RAM-Einsparung.
 
-Dies ist eine **funktionierende Launcher-Alpha**, kein fertiger Steam-Konkurrent. Der Katalog enthält ausdrücklich **fiktive Konzeptspiele**; sie sind nicht als echte Downloads verfügbar. Funktionieren tun Seitenwechsel, Suche, Genre-Filter, Favoriten, lokale Spieleverwaltung, Design-Einstellungen, JSON-Export/-Import und das spielbare Minigame **NovaLab Arcade**. Freunde, Chat-Nachrichten, Cloud und Shop-Zahlungen sind **Demo-Vorschau ohne Server**. Es existieren **keine echten Abos oder Zahlungen**.
+## Tatsächliche Funktionen
 
-### In der Windows-App (Rust/Tauri)
+- **Accounts:** Benutzername/Passwort-Registrierung und Anmeldung mit Supabase-Edge-Functions, aktuelle Sitzung, Passwortänderung; Benutzer benötigen bei einem temporären Passwort zunächst eine Änderung
+- **Rollen:** User, Developer, Admin. Ein Developer darf eigene Spiele mit Beschreibung, Cover, Banner, Screenshots, Videos und Builds anlegen und bearbeiten. Nur Admins können Rechte vergeben, globale Katalogeinträge archivieren oder Projekte vollständig löschen
+- **Spielkatalog:** Veröffentlichte NovaLab-Titel werden vom Backend bezogen. Fiktive Konzepte sind als Demos erkennbar; Demo-Spiele sind keine echten Windows-Downloads
+- **Versionierte Spiele:** ZIP-Dateien und startbare EXE-/HTML-Einträge; HTTPS-Download, SHA-256-Validierung, begrenztes ZIP-Entpacken, installierte Versionen und In-App-Spielupdates
+- **Windows:** Native Downloads, Dateidialog, Installation, Start, Deinstallation, verifizierte GitHub-Launcher-Updates per NSIS, eine einzige Launcher-Instanz
+- **Lokal:** Favoriten, persönliche Spieleinträge, Designs, Arcade-Minispiel und JSON-Export/-Import
 
-- Bereits installierte Windows-Spiele über einen nativen Dateidialog auswählen und **als verknüpfte EXE starten**. Der Rust-Teil akzeptiert nur explizit verknüpfte Pfade.
-- Einem eigenen Spieleintrag **HTTPS-Downloadlink** hinterlegen, Downloadziel wählen, **reale Bytes herunterladen**, Fortschritt anzeigen und abbrechen. Die Datei wird **nicht automatisch ausgeführt oder installiert**. HTTP-Weiterleitungen werden abgelehnt.
-- Alle Daten lokal im Webview gespeichert (nicht in der Cloud); die Liste autorisierter EXE-Dateien speichert der Rust-Teil im App-Datenordner.
+**Noch Demo oder begrenzt:** Die Freunde-/Chat-Funktionen, Cloud-Speicher, umfangreiche Shop-/Zahlungsfunktionen und ein echtes automatisches Update mit kryptografisch signiertem Tauri-Updater sind nicht fertig. Öffentliche Uploads durch normale Spieler sind **nicht erlaubt**. Aktuell gelten für Studio-ZIP-Uploads 12 MB; separate, vorhandene verifizierte Releases können deutlich größer sein.
 
-### Im mobilen Browser
+## Was wird getestet?
 
-- Responsive Ansicht mit Suchfeld, Startseite, Shop, Bibliothek, Favoriten, Downloads, Spieleverwaltung, Einstellungen und Arcade-Minispiel.
-- Bei HTTPS-Hosting ist die App durch ein Web App Manifest und einen Service Worker **PWA-fähig** (Zum Home-Bildschirm hinzufügen, Offline-Cache der wesentlichen Assets).
-- Native EXE-Starts und Rust-Downloads sind auf Handys technisch **nicht möglich**; ein hinterlegter HTTPS-Link wird im Browser geöffnet.
-- **iPhone-Dateivorschau** (beispielsweise TikTok/Dateien): Solche Viewer können JavaScript deaktivieren. Deshalb erscheint in der neuen `NovaLab-Mobile-Test.html` eine **statische Startseiten-Vorschau statt eines leeren Bildschirms**. Für klickbare Menüs die **online gehostete Seite direkt in Safari** öffnen.
+- [Automatisierte Browser-QA](https://github.com/akraniss05/NovaLab-Website1/actions): mobile/desktop Navigation, Login-Testdaten, Rollen, Developer Studio, Versionsanzeige, Import beschädigter Konfigurationen und anonyme API-Berechtigungen
+- Rust-Tests für ZIP-Sicherheit, SemVer, Installationswiederherstellung und Update-Auskünfte
+- Windows-GitHub-Actions: NSIS-Installer bauen, installierte vorherige Version upgraden und neue EXE anhand einer anderen SHA-256-Prüfsumme bestätigen
+- Live-Asset-Prüfung: SHA-256 und ZIP-Integrität der veröffentlichten Pakete, einschließlich eines großen NovaLab-Code-Releases
+- [QA-Befunde und Restrisiken](QA-AUDIT-2026-11-12.md)
 
-## Windows-Setup erstellen
+Ein Test mit simuliertem Login ist **kein Nachweis**, dass jedes echte Konto funktioniert. Das gilt ebenso für den Test eines Installers auf einem GitHub-Windows-Runner versus Nutzung am eigenen PC.
 
-Der Windows-Installer benötigt eine Windows-Buildumgebung (lokal oder GitHub Actions) mit aktuellem Rust 1.90+, Node.js 22+ und WebView2 (unter Windows 11 in der Regel bereits enthalten). Für signierte öffentliche Releases ist ein Codesigning-Zertifikat nötig.
+## Windows installieren
 
-**GitHub Actions ohne eigenen Windows-PC:**
+[Offizielle Launcher-Releases](https://github.com/akraniss05/NovaLab-Website1/releases) – wähle die neueste **NovaLab Studios Launcher**-Alpha mit Dateinamen `NovaLab.Studios.Launcher_<Version>_x64-setup.exe`.
 
-1. Erstelle ein **neues separates Repository**, etwa `NovaLab-Studios-Launcher`, und lade **den gesamten Inhalt dieses ZIPs** hoch, inklusive `.github` und `src-tauri`.
-2. Im GitHub-Repository: **Actions → Build NovaLab Windows (Rust + Tauri) → Run workflow**.
-3. Bei erfolgreichem Build das Artefakt `NovaLab-Studios-Rust-Windows-Setup` herunterladen. Darin liegt der Windows-Installer (`.exe`).
+Von Version 0.8 auf neuere Versionen kann das Programm **Einstellungen → Launcher-Updates** nutzen: aktuelle GitHub-Releases suchen, Downloadgröße und SHA-256 validieren, App schließen und den Windows-Installer starten. Den echten Ablauf testen GitHub-Actions-Jobs. Windows SmartScreen kann bei nicht codesignierten Releases warnen; diese Warnung kann nicht seriös wegprogrammiert werden.
 
-Alternativ auf Windows mit Node.js + Rust:
+## Entwicklung
 
-```powershell
+Das Projekt liegt in `launcher/`; die öffentliche Website außerhalb dieses Verzeichnisses gehört **nicht** zum Launcher. Die Build-Dateien liegen in `launcher/desktop/`.
+
+```bash
+cd launcher/desktop
 npm install
+npm run build:web
 npm run tauri:build
 ```
 
-Das Setup entsteht unter `src-tauri/target/release/bundle/nsis/`.
-
-## Handy-Test online bereitstellen (empfohlen)
-
-- Im **separaten Launcher-Repository** in GitHub unter **Settings → Pages → Build and deployment → GitHub Actions** auswählen.
-- **Actions → NovaLab Mobile Browser Preview → Run workflow** ausführen.
-- Nach erfolgreichem Deployment findest du den Browser-Link direkt in der GitHub Pages Deployment-Umgebung oder unter `https://DEIN-NUTZERNAME.github.io/DEIN-LAUNCHER-REPO/`.
-- Den Link auf dem iPhone **in Safari** öffnen (nicht in der TikTok-Datei-Vorschau). Du kannst ihn anschließend zum Home-Bildschirm hinzufügen.
-
-**Es wurde noch nichts automatisch auf GitHub veröffentlicht**, damit die bestehende NovaLab-Website unangetastet bleibt.
-
-## Lokale Web-Tests am Computer
-
-```bash
-npm run dev
-```
-
-Danach `http://127.0.0.1:4177` im Browser öffnen. Oder `npm run build:web` ausführen und `dist-web/` mit einem beliebigen statischen HTTPS-Host veröffentlichen.
-
-## Speicher- und Sicherheitsdesign
-
-- Rust und Tauri ersetzen Electron und benutzen die Windows-System-WebView. Das kann den Paketumfang und den RAM-Verbrauch gegenüber einer Electron-App reduzieren, garantiert aber keine bestimmte RAM-Zahl. Die **Webansicht selbst ist weiterhin HTML/CSS/JavaScript**, nicht Rust; deshalb enthält das Projekt **keine schweren Frontend-Abhängigkeiten**.
-- Bilder sind optimiert, und es gibt keine laufenden Netzwerk-Polling-Schleifen. Das Arcade-Minispiel animiert nur während des aktiven Spielens.
-- Externe Spieler-URLs müssen HTTPS verwenden. Kein automatischer Installer-Start. Browser-/Desktop-Speicher ist lokal und nicht mit einem zentralen Admin-System verknüpft.
-- Neue EXE-Spiele immer selbst auf Sicherheit prüfen. Die App nimmt dir diese Verantwortung nicht ab.
-
-## Projektstruktur
-
-`index.html`, `styles.css`, `app.js`: gemeinsames Frontend. `native-bridge.js`: sehr kleine Schnittstelle zu Rust. `src-tauri/`: native Windows-App mit Rust-Kommandos. `scripts/`: Build-/Testskripte. `assets/`: Cover-Bilder, Icon und Logo. `NovaLab-Mobile-Test.html`: eigenständige Offline-Testdatei mit allen Bildern/Skripten. `dist-web/`: von `npm run build:web` erzeugte Webversion. `.github/workflows/`: Windows-Builder und mobile GitHub Pages Vorschau.
-
-## Verifikation dieser Alpha
-
-- `node --check app.js` und `node scripts/test-static.cjs`: bestanden.
-- `node scripts/test-ui.cjs`: Navigation, Such-/Filterlogik, Einstellungs-Speicherung und Seiten-Rendering über DOM-Test-Doubles geprüft.
-- `node scripts/build-web.cjs` und `python build_mobile.py`: bestanden.
-- **Nicht durchgeführt:** Kompilierung des Rust-Projekts und echte Windows-/iOS-Gerätetests, da die entsprechenden Toolchains/Browser hier nicht verfügbar sind. Der Windows-GitHub-Workflow führt den Build nach dem Hochladen aus.
+Rust benötigt eine Windows-kompatible Buildumgebung und die für Tauri 2 notwendigen Systemkomponenten. Für eine neue Veröffentlichung **immer eine neue Versionsnummer** verwenden und alte GitHub-Release-Dateien unverändert lassen – nachträglich überschriebene Assets machen Update-Prüfsummen und Upgrade-Tests unzuverlässig.
 
 Made with 💗 by NovaLab Studios.
-
-
-## Alpha 0.5 – Katalog & Installationen
-- SemVer-Vergleich: kein versehentliches Downgrade statt Update.
-- Katalog wird alle drei Minuten und beim Zurückkehren in die App aktualisiert.
-- Installationsfortschritt mit Prüfen, Entpacken und Aktivieren.
-- Installierte Games lassen sich innerhalb des Launchers deinstallieren; manuell verknüpfte Programme bleiben unberührt.
-- Release-Notizen und aktuelle/überholte Versionsstände in der Detailansicht.
