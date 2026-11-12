@@ -63,10 +63,10 @@
     "id": "novalab-launcher",
     "title": "NovaLab Launcher",
     "summary": "Eigene Windows-App für NovaLab Code, kostenlose Mini-Games, Downloads und Updates.",
-    "description": "NovaLab Launcher ist bereits als Windows-App erhältlich (Release v0.8 Alpha, Early Access). Die Plattform verbindet kostenlose Mini-Games und NovaLab Code mit einer Spielebibliothek, Downloads und Updates. Berechtigte Administratoren können neue Projekte veröffentlichen. Der aktuelle Installer liegt auf der offiziellen Downloadseite. Die Anwendung wird weiterhin entwickelt und ist nicht digital signiert.",
+    "description": "NovaLab Launcher ist bereits als Windows-App erhältlich (Release v0.10 Alpha, Early Access). Die Plattform verbindet kostenlose Mini-Games und NovaLab Code mit einer Spielebibliothek, Downloads und Updates. Berechtigte Administratoren können neue Projekte veröffentlichen. Der aktuelle Installer liegt auf der offiziellen Downloadseite. Die Anwendung wird weiterhin entwickelt und ist nicht digital signiert.",
     "category": "games",
     "status": "Windows Early Access",
-    "link": "https://github.com/akraniss05/NovaLab-Website1/releases/download/novalab-launcher-v0.8-alpha/NovaLab.Studios.Launcher_0.8.0_x64-setup.exe",
+    "link": "https://github.com/akraniss05/NovaLab-Website1/releases/download/novalab-launcher-v0.10-alpha/NovaLab.Studios.Launcher_0.10.0_x64-setup.exe",
     "tags": [
       "Windows",
       "Downloads",
