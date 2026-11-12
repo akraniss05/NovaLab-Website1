@@ -1,14 +1,16 @@
 {
-  "name":"novalab-studios-launcher",
-  "private":true,
-  "version":"0.5.0",
-  "description":"NovaLab Studios — Rust/Tauri 2 desktop launcher and browser test",
+  "name": "novalab-studios-launcher",
+  "private": true,
+  "version": "0.8.0",
+  "description": "NovaLab Studios — Rust/Tauri 2 desktop launcher and browser test",
   "scripts": {
-    "dev":"node scripts/dev-server.cjs",
-    "build:web":"node scripts/build-web.cjs",
-    "tauri:dev":"tauri dev",
-    "tauri:build":"tauri build",
-    "test":"node scripts/test-static.cjs"
+    "dev": "node scripts/dev-server.cjs",
+    "build:web": "node scripts/build-web.cjs",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "test": "node scripts/test-static.cjs"
   },
-  "devDependencies": {"@tauri-apps/cli":"^2.0.0"}
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.4"
+  }
 }
