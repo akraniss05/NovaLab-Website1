@@ -12,6 +12,8 @@ on:
       - 'assets/site-*.svg'
       - 'scripts/qa_website.py'
       - 'scripts/qa_browser.py'
+      - 'scripts/qa_functional.py'
+      - 'backend/novalab-site-api/index.ts'
       - '.github/workflows/website-v14-qa.yml'
 permissions:
   contents: write
@@ -39,6 +41,7 @@ jobs:
           trap 'kill $pid || true' EXIT
           sleep 2
           python3 scripts/qa_browser.py
+          python3 scripts/qa_functional.py
       - name: Bilder als Workflow-Artefakt veröffentlichen
         if: always()
         uses: actions/upload-artifact@v4
