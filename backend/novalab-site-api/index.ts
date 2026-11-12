@@ -22,6 +22,11 @@ const unb64 = (s: string) => {
 };
 const hex = (bytes: Uint8Array) => [...bytes].map(b => b.toString(16).padStart(2,"0")).join("");
 const fromHex = (value: string) => Uint8Array.from(value.match(/.{2}/g) || [], s => parseInt(s, 16));
+// Version the public catalog so two administrators cannot silently overwrite a stale view.
+async function catalogRevision(rows: Array<{id:string;sort_order:number;updated_at:string;data:unknown}>) {
+  const snapshot=rows.map(row=>[row.id,row.sort_order,row.updated_at,row.data]);
+  return hex(new Uint8Array(await crypto.subtle.digest("SHA-256",enc.encode(JSON.stringify(snapshot)))));
+}
 const signingKeyBytes = new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode("novalab-site-admin-session-v1:" + secret)));
 const signingKey = await crypto.subtle.importKey("raw", signingKeyBytes, { name:"HMAC", hash:"SHA-256" }, false, ["sign","verify"]);
 const send = (req: Request, data: unknown, status=200) => {
@@ -119,9 +124,9 @@ Deno.serve(async(req:Request)=>{
   try{
     if(req.method==="GET"&&path==="/health")return send(req,{status:"ok",project:"NovaLab Studios"});
     if(req.method==="GET"&&path==="/projects"){
-      const {data,error}=await db.from("novalab_site_projects").select("data").order("sort_order");
+      const {data,error}=await db.from("novalab_site_projects").select("id,data,sort_order,updated_at").order("sort_order").order("id");
       if(error)throw error;
-      return send(req,{projects:(data||[]).map(row=>row.data)});
+      return send(req,{projects:(data||[]).map(row=>row.data),revision:await catalogRevision(data||[])});
     }
     if(req.method==="POST"&&path==="/login"){
       const input=await readBody(req,1600);
@@ -185,15 +190,21 @@ Deno.serve(async(req:Request)=>{
       const items=body.projects.map((p:Record<string,unknown>,i:number)=>cleanProject(p,i));
       const unique=new Set(items.map(p=>p.id));
       if(unique.size!==items.length)throw new Error("Projekt-IDs müssen eindeutig sein.");
+      const {data:before,error:readError}=await db.from("novalab_site_projects").select("id,data,sort_order,updated_at").order("sort_order").order("id");
+      if(readError)throw readError;
+      const latest=await catalogRevision(before||[]);
+      if(typeof body.revision!=="string"||body.revision!==latest) {
+        return send(req,{error:"Der Projektkatalog wurde seit dem Laden verändert. Deine Änderungen wurden nicht überschrieben. Bitte vor einem erneuten Versuch den aktuellen Stand prüfen.",code:"CATALOG_CONFLICT"},409);
+      }
       if(items.length){
         const {error}=await db.from("novalab_site_projects").upsert(items.map(p=>({id:p.id,data:p,sort_order:p.sort_index,updated_at:new Date().toISOString()})),{onConflict:"id"});
         if(error)throw error;
       }
-      const {data:current,error:lookupError}=await db.from("novalab_site_projects").select("id");
-      if(lookupError)throw lookupError;
-      const stale=(current||[]).map(p=>p.id).filter(id=>!unique.has(id));
+      const stale=(before||[]).map(p=>p.id).filter(id=>!unique.has(id));
       if(stale.length){const {error}=await db.from("novalab_site_projects").delete().in("id",stale);if(error)throw error}
-      return send(req,{ok:true,count:items.length,updatedBy:session.username});
+      const {data:after,error:verifyError}=await db.from("novalab_site_projects").select("id,data,sort_order,updated_at").order("sort_order").order("id");
+      if(verifyError)throw verifyError;
+      return send(req,{ok:true,count:items.length,updatedBy:session.username,revision:await catalogRevision(after||[])});
     }
     if(req.method==="POST"&&path==="/media"){
       const body=await readBody(req,17500000);
