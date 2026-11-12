@@ -24,6 +24,10 @@ impl Drop for InstallGuard {
         }
     }
 }
+fn is_installing_game(app:&AppHandle,id:&str)->bool {
+    app.state::<InstallRegistry>().0.lock()
+        .map(|active|active.contains(id)).unwrap_or(true)
+}
 fn reserve_install(app:&AppHandle,id:&str)->Result<InstallGuard,String>{
     let state=app.state::<InstallRegistry>();
     let mut active=state.0.lock().map_err(|_|"Installationsverwaltung nicht verfügbar")?;
@@ -284,12 +288,17 @@ fn installed_games(app:AppHandle)->Result<Vec<InstalledRelease>,String>{
     for file in fs::read_dir(installed_dir(&app)?).map_err(|e|e.to_string())? {
         let file=file.map_err(|e|e.to_string())?;
         let id=file.file_name().to_string_lossy().into_owned();
+        // Do not restore a backup manifest while another thread is swapping it.
+        if is_installing_game(&app,&id){continue;}
         if let Ok(manifest)=read_installed(&app,&id){out.push(manifest)}
     }
     Ok(out)
 }
 #[tauri::command]
 fn launch_installed_game(app:AppHandle, game_id:String)->Result<serde_json::Value,String>{
+    if is_installing_game(&app,&game_id){
+        return Err("Spiel wird gerade installiert oder aktualisiert. Bitte erneut versuchen.".into());
+    }
     let manifest=read_installed(&app,&game_id)?;
     let extension=if manifest.format=="windows" {".exe"}else{".html"};
     if !manifest.entry.to_ascii_lowercase().ends_with(extension) && !(manifest.format=="html"&&manifest.entry.to_ascii_lowercase().ends_with(".htm")) {
@@ -370,7 +379,9 @@ async fn install_game_version(app:AppHandle, game_id:String, version:String, url
     let entry_path=PathBuf::from(&entry);
     if entry.len()>140||entry.is_empty()||entry_path.is_absolute()||entry_path.components().any(|part|matches!(part,std::path::Component::ParentDir|std::path::Component::Prefix(_))){return Err("Ungültige Startdatei".into())}
     if game_format=="windows"&&!entry.to_ascii_lowercase().ends_with(".exe"){return Err("Windows-Paket benötigt eine EXE".into())}
-    if game_format=="html"&&!entry.to_ascii_lowercase().ends_with(".html"){return Err("HTML-Paket benötigt eine HTML-Datei".into())}
+    if game_format=="html"&&!(entry.to_ascii_lowercase().ends_with(".html")||entry.to_ascii_lowercase().ends_with(".htm")){
+        return Err("HTML-Paket benötigt eine HTML- oder HTM-Datei".into());
+    }
     if sha256.len()!=64||!sha256.bytes().all(|b|b.is_ascii_hexdigit()){return Err("Ungültige Paket-Prüfsumme".into())}
     let u=reqwest::Url::parse(&url).map_err(|_|"Ungültige Download-URL")?;
     if u.scheme()!="https"{return Err("Nur HTTPS-Downloads erlaubt".into())}
