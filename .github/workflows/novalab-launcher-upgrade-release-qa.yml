@@ -1,9 +1,5 @@
 name: NovaLab Windows In-App Update Release QA
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/novalab-launcher-upgrade-release-qa.yml'
   workflow_run:
     workflows: ["NovaLab Studios Launcher v0.7 Windows / Rust"]
     types: [completed]
@@ -12,11 +8,11 @@ permissions:
   contents: read
 jobs:
   real-installer-upgrade:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
-      - name: Install released 0.5 and run released 0.6 passive update
+      - name: Install released 0.6 and run released 0.7 passive update
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
