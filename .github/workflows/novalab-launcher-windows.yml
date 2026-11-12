@@ -1,4 +1,4 @@
-name: NovaLab Studios Launcher v0.7 Windows / Rust
+name: NovaLab Studios Launcher v0.8 Windows / Rust
 on:
   push:
     branches: [main]
@@ -8,6 +8,9 @@ on:
       - 'launcher/native-bridge.js'
       - '.github/workflows/novalab-launcher-windows.yml'
   workflow_dispatch:
+concurrency:
+  group: novalab-launcher-win-release
+  cancel-in-progress: true
 permissions:
   contents: write
 jobs:
@@ -61,19 +64,26 @@ jobs:
           '@ | python -
       - name: Install Tauri CLI
         run: npm install --no-audit --no-fund
-      - name: Run Rust updater version tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml --lib updater_tests
+      - name: Test Rust updater, ZIP integrity and malformed inputs
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
       - name: Compile NSIS Windows installer
         run: npx tauri build --bundles nsis
+      - name: Refuse overwriting any already-published launcher version
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view novalab-launcher-v0.8-alpha --repo akraniss05/NovaLab-Website1 --json tagName *> $null
+          if ($LASTEXITCODE -eq 0) { throw 'Version 0.8 already published: bump version before publishing changes.' }
       - name: Smoke-test Windows upgrade from installed 0.6 to 0.7
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $old = Join-Path $env:RUNNER_TEMP 'novalab-v06-setup.exe'
-          $oldUrl = 'https://github.com/akraniss05/NovaLab-Website1/releases/download/novalab-launcher-v0.6-alpha/NovaLab.Studios.Launcher_0.6.0_x64-setup.exe'
+          $old = Join-Path $env:RUNNER_TEMP 'novalab-v07-setup.exe'
+          $oldUrl = 'https://github.com/akraniss05/NovaLab-Website1/releases/download/novalab-launcher-v0.7-alpha/NovaLab.Studios.Launcher_0.7.0_x64-setup.exe'
           Invoke-WebRequest -Uri $oldUrl -OutFile $old
-          $oldRelease = Invoke-RestMethod -Uri 'https://api.github.com/repos/akraniss05/NovaLab-Website1/releases/tags/novalab-launcher-v0.6-alpha' -Headers @{'User-Agent'='NovaLab-Upgrade-QA'}
-          $previousAsset = $oldRelease.assets | Where-Object { $_.name -eq 'NovaLab.Studios.Launcher_0.6.0_x64-setup.exe' } | Select-Object -First 1
+          $oldRelease = Invoke-RestMethod -Uri 'https://api.github.com/repos/akraniss05/NovaLab-Website1/releases/tags/novalab-launcher-v0.7-alpha' -Headers @{'User-Agent'='NovaLab-Upgrade-QA';'Authorization'="Bearer $env:GH_TOKEN"}
+          $previousAsset = $oldRelease.assets | Where-Object { $_.name -eq 'NovaLab.Studios.Launcher_0.7.0_x64-setup.exe' } | Select-Object -First 1
           if (-not $previousAsset -or $previousAsset.digest -notmatch '^sha256:[0-9a-f]{64}$') { throw 'Old asset is missing verified release digest' }
           if ((Get-FileHash $old -Algorithm SHA256).Hash.ToLowerInvariant() -ne $previousAsset.digest.Substring(7)) { throw 'Previous release checksum mismatch' }
           $new = (Get-ChildItem -Path 'src-tauri/target/release/bundle/nsis' -Filter '*.exe' | Select-Object -First 1).FullName
@@ -81,9 +91,9 @@ jobs:
           $installDir = Join-Path $env:RUNNER_TEMP 'novalab-upgrade-smoke'
           New-Item -ItemType Directory -Force -Path $installDir | Out-Null
           $result = Start-Process -FilePath $old -ArgumentList @('/S',"/D=$installDir") -Wait -PassThru
-          if ($result.ExitCode -ne 0) { throw "0.5 install failed: $($result.ExitCode)" }
+          if ($result.ExitCode -ne 0) { throw "0.7 install failed: $($result.ExitCode)" }
           $exe = Get-ChildItem -Path $installDir -Filter '*.exe' -Recurse | Where-Object {$_.Name -notmatch 'uninstall'} | Select-Object -First 1
-          if (-not $exe) { throw '0.5 installation missing executable' }
+          if (-not $exe) { throw '0.7 installation missing executable' }
           $oldHash = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash
           $result = Start-Process -FilePath $new -ArgumentList @('/S',"/D=$installDir") -Wait -PassThru
           if ($result.ExitCode -ne 0) { throw "0.7 upgrade failed: $($result.ExitCode)" }
@@ -93,17 +103,17 @@ jobs:
           Write-Host "PASS: older NSIS install upgraded in-place: $($upgradedExe.FullName)"
       - uses: actions/upload-artifact@v4
         with:
-          name: NovaLab-Studios-v0.7-Windows-Rust
+          name: NovaLab-Studios-v0.8-Windows-Rust
           path: launcher/desktop/src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
       - name: Publish versioned GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: novalab-launcher-v0.7-alpha
-          name: NovaLab Studios Launcher v0.7 Alpha (Rust/Tauri)
+          tag_name: novalab-launcher-v0.8-alpha
+          name: NovaLab Studios Launcher v0.8 Alpha (Rust/Tauri)
           prerelease: true
           body: |
-            NovaLab Studios 0.7.0 – Installer-Sicherheit und Stabilität.
+            NovaLab Studios 0.8.0 – Installer-Sicherheit und Stabilität.
             - Sichere HTTPS-Redirects und begrenzte Downloadgröße.
             - Installationssperre bei parallelen Installationen desselben Spiels.
             - Wiederherstellung bei unterbrochenen Spielupdates und Bereinigung älterer Versionen.
@@ -113,11 +123,13 @@ jobs:
           fail_on_unmatched_files: true
       - name: Validate published release asset integrity metadata
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $url = 'https://api.github.com/repos/akraniss05/NovaLab-Website1/releases/tags/novalab-launcher-v0.7-alpha'
+          $url = 'https://api.github.com/repos/akraniss05/NovaLab-Website1/releases/tags/novalab-launcher-v0.8-alpha'
           for ($try = 0; $try -lt 8; $try++) {
-            $r = Invoke-RestMethod -Uri $url -Headers @{'User-Agent'='NovaLab-CI'}
+            $r = Invoke-RestMethod -Uri $url -Headers @{'User-Agent'='NovaLab-CI';'Authorization'="Bearer $env:GH_TOKEN"}
             $asset = $r.assets | Where-Object {$_.name -like '*_x64-setup.exe'} | Select-Object -First 1
             if ($asset -and $asset.digest -match '^sha256:[0-9a-f]{64}$') { break }
             Start-Sleep -Seconds 3
