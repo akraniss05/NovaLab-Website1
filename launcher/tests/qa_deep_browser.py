@@ -13,7 +13,7 @@ CATALOG={"games":[
   "entry":"qa.exe","sha256":"b"*64,"url":"https://example.org/qa.zip","size":1024}},
  {"id":"community-injection","title":"<img src=x onerror=window.__injected=true>",
   "summary":"<svg onload=window.__injected=true>","description":"Harmless literal attack sample",
-  "genre":"\\\"><img src=x onerror=window.__injected=true>","developer":"QA","cover":"https://example.org/a%22%20onerror=x",
+  "genre":'"><img src=x onerror=window.__injected=true>',"developer":"QA","cover":"https://example.org/a%22%20onerror=x",
   "release":None}
 ]}
 MOCK_NATIVE="""(()=>{
