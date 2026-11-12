@@ -37,7 +37,8 @@ try:
     assert page.evaluate("sessionStorage.getItem('novalab_launcher_session_v4')")==TOKEN,"Transient offline wiped user session"
     network["online"]=True
     page.evaluate("window.dispatchEvent(new Event('online'))")
-    page.get_by_text("SessionTester",exact=False).first.wait_for(timeout=6000)
+    page.locator("#mobile-tabbar [data-page='account']").click()
+    page.get_by_text("Willkommen, SessionTester",exact=False).first.wait_for(timeout=6000)
     assert page.evaluate("sessionStorage.getItem('novalab_launcher_session_v4')")==TOKEN
    else:
     assert page.evaluate("sessionStorage.getItem('novalab_launcher_session_v4')")==None,"Revoked session not cleared"
