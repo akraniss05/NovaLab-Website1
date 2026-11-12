@@ -7,8 +7,8 @@ from playwright.async_api import async_playwright
 URL="http://127.0.0.1:4173/"
 PROJECTS=[
  {"id":"novalab-code","title":"NovaLab Code","summary":"Coding lernen","description":"Codekurse","category":"coding","status":"Beta","link":"#code","cover":"./assets/site-code.svg","gallery":[],"video":"","tags":["Python"],"featured":True},
- {"id":"novalab-launcher","title":"NovaLab Launcher","summary":"Desktop Downloads","description":"Windows Apps","category":"games","status":"Early Access","link":"./launcher/download.html","cover":"./assets/site-launcher.svg","gallery":[],"video":"","tags":["Windows"],"featured":False},
- {"id":"my-new-project","title":"NovaLab Experiment","summary":"Ein neues Projekt","description":"In Arbeit","category":"tools","status":"In Entwicklung","link":"#projects","cover":"./assets/site-hero.svg","gallery":[],"video":"","tags":["Design"],"featured":True}
+ {"id":"novalab-launcher","title":"NovaLab Launcher","summary":"Desktop Downloads","description":"Windows Apps","category":"games","status":"Early Access","link":"https://github.com/akraniss05/NovaLab-Website1/releases/tag/novalab-launcher-v0.8-alpha","cover":"./assets/site-launcher.svg","gallery":[],"video":"","tags":["Windows"],"featured":False},
+ {"id":"my-new-project","title":"NovaLab Experiment","summary":"Ein neues Projekt","description":"In Arbeit","category":"tools","status":"In Entwicklung","link":"./index.html","cover":"./assets/site-hero.svg","gallery":[],"video":"","tags":["Design"],"featured":True}
 ]
 
 async def run():
@@ -51,7 +51,9 @@ async def run():
   await page.locator(".detail-cover img").wait_for()
   assert await page.locator(".detail-cover img").get_attribute("src")=="./assets/site-code.svg"
   await page.goto(URL+"#project/novalab-launcher",wait_until="domcontentloaded")
-  await page.locator("#projectDetail a[href='./launcher/download.html']").wait_for()
+  await page.locator("#projectDetail a[href*='releases/tag/novalab-launcher-v0.8-alpha']").wait_for()
+  await page.goto(URL+"#project/my-new-project",wait_until="domcontentloaded")
+  await page.locator("#projectDetail a[href='./index.html']").wait_for()
   await page.goto(URL+"#home",wait_until="domcontentloaded")
   await page.locator("#featuredGrid .project-card").filter(has_text="NovaLab Experiment").wait_for()
   assert await page.locator("#featuredGrid .project-card").count()==2
@@ -62,7 +64,7 @@ async def run():
   await page.locator("#adminDashboard").wait_for(state="visible")
   assert await page.locator("#dashboardProjects").inner_text()=="3"
   await page.locator("#adminRows .admin-row").filter(has_text="NovaLab Launcher").get_by_role("button",name="Bearbeiten").click()
-  assert await page.locator("#fLink").input_value()=="./launcher/download.html"
+  assert "releases/tag/novalab-launcher-v0.8-alpha" in await page.locator("#fLink").input_value()
   await page.locator("#fSummary").fill("Aktualisiert ohne Zwischenspeichern")
   await page.locator("#fFeatured").check()
   await page.locator("#publish").click()
