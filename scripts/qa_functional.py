@@ -14,25 +14,30 @@ PROJECTS=[
 async def run():
  saved=[dict(x) for x in PROJECTS]
  published=[]
+ revision="a"*64
  async with async_playwright() as p:
   browser=await p.chromium.launch(headless=True,args=["--no-sandbox","--disable-dev-shm-usage"])
   page=await browser.new_page(viewport={"width":1350,"height":900})
   errors=[]
   page.on("pageerror",lambda error:errors.append(str(error)))
   async def mock_api(route):
-   nonlocal saved
+   nonlocal saved,revision
    req=route.request
    path=urlparse(req.url).path.split("/novalab-site-api")[-1]
    headers={"access-control-allow-origin":"*","access-control-allow-headers":"authorization,content-type","access-control-allow-methods":"GET,POST,PUT,OPTIONS","content-type":"application/json"}
    if req.method=="OPTIONS":
     await route.fulfill(status=204,headers=headers,body="")
     return
-   if path=="/projects" and req.method=="GET":data={"projects":saved}
+   if path=="/projects" and req.method=="GET":data={"projects":saved,"revision":revision}
    elif path=="/projects" and req.method=="PUT":
     body=json.loads(req.post_data)
+    if body.get("revision")!=revision:
+     await route.fulfill(status=409,headers=headers,body=json.dumps({"error":"Der Projektkatalog wurde seit dem Laden verändert.","code":"CATALOG_CONFLICT"}))
+     return
     saved=body["projects"]
     published.append(saved)
-    data={"ok":True,"count":len(saved)}
+    revision=chr(ord(revision[0])+1)*64
+    data={"ok":True,"count":len(saved),"revision":revision}
    elif path=="/login":data={"token":"test-only-token","username":"tester"}
    elif path=="/me":data={"username":"tester","role":"admin"}
    elif path=="/media":data={"url":"https://example.com/test-upload.png"}
@@ -68,6 +73,10 @@ async def run():
   await page.locator("#adminRows .admin-row").filter(has_text="NovaLab Launcher").get_by_role("button",name="Bearbeiten").click()
   assert "releases/tag/novalab-launcher-v0.8-alpha" in await page.locator("#fLink").input_value()
   await page.locator("#fSummary").fill("Aktualisiert ohne Zwischenspeichern")
+  # Switching projects without confirmation must not destroy the draft.
+  page.once("dialog",lambda dialog:asyncio.create_task(dialog.dismiss()))
+  await page.locator("#newProject").click()
+  assert await page.locator("#fSummary").input_value()=="Aktualisiert ohne Zwischenspeichern"
   await page.locator("#fFeatured").check()
   await page.locator("#publish").click()
   await page.get_by_text("Erfolgreich veröffentlicht",exact=False).wait_for()
@@ -89,6 +98,9 @@ async def run():
   await page.locator("#fSummary").fill("Neues Projekt mit Bild")
   await page.locator("#fLink").fill("./index.html")
   await page.locator("#fCoverFile").set_input_files({"name":"test.png","mimeType":"image/png","buffer":b"test-png"})
+  await page.locator("#projectForm button[type='submit']").click()
+  await page.locator("#clearQueuedUploads").wait_for(state="visible")
+  assert "1 Datei" in await page.locator("#queuedUploadsInfo").inner_text()
   await page.locator("#publish").click()
   await page.get_by_text("Erfolgreich veröffentlicht",exact=False).wait_for()
   item=next(x for x in published[-1] if x["title"]=="NovaLab QA Projekt")
@@ -109,6 +121,17 @@ async def run():
   await page.locator("#loginPassword").fill("a-password")
   await page.locator("#loginButton").click()
   await page.locator("#adminDashboard").wait_for(state="visible")
+  # Server changed while this user was editing: reject stale publications.
+  await page.locator("#adminRows .admin-row").filter(has_text="NovaLab Code").get_by_role("button",name="Bearbeiten").click()
+  await page.locator("#fSummary").fill("Dieser Entwurf darf nicht überschreiben")
+  revision="f"*64
+  previous=len(published)
+  await page.locator("#publish").click()
+  await page.get_by_text("Der Projektkatalog wurde seit dem Laden verändert.",exact=False).wait_for()
+  assert len(published)==previous
+  page.once("dialog",lambda dialog:asyncio.create_task(dialog.accept()))
+  await page.locator("#reload").click()
+  await page.get_by_text("Öffentliche Projekte aus dem Backend neu geladen.",exact=False).wait_for()
   await page.locator(".studio-password-settings > summary").click()
   await page.locator("#currentAdminPassword").fill("old-password")
   await page.locator("#newAdminPassword").fill("new-password-long-enough")
