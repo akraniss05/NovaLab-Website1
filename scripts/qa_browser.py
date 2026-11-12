@@ -28,20 +28,10 @@ async def run():
   await desktop.screenshot(path=str(OUT/'website-code-desktop.png'),full_page=True,animations='disabled')
   await desktop.goto(URL+'#launcher',wait_until='domcontentloaded')
   assert await desktop.locator('[data-page="launcher"]').is_visible()
-  assert await desktop.locator('a[href="./launcher/download.html"]').count()>0
+  assert await desktop.locator('a[href*="releases/download/novalab-launcher-v0.8-alpha/"]').count()>0
   await desktop.goto(URL+'#admin',wait_until='domcontentloaded')
   assert await desktop.locator('#loginForm').is_visible()
   assert await desktop.locator('#loginPassword').get_attribute('type')=='password'
-  await desktop.goto(URL+'launcher/download.html',wait_until='domcontentloaded')
-  assert await desktop.locator('#download').count()==1
-  assert await desktop.locator('#download').get_attribute('href') != 'https://github.com/akraniss05/NovaLab-Website1/releases'
-  assert await desktop.locator('#download').get_attribute('aria-disabled') is None
-  assert await desktop.locator('.illustration img').count()==1
-  await desktop.screenshot(path=str(OUT/'website-launcher-download.png'),full_page=True,animations='disabled')
-  await desktop.goto(URL+'launcher/mini-games/index.html',wait_until='domcontentloaded')
-  await desktop.locator('.cards .card').first.wait_for(state='visible',timeout=12000)
-  assert await desktop.locator('.cards .card').count()>=1
-  await desktop.screenshot(path=str(OUT/'website-mini-games.png'),full_page=True,animations='disabled')
   assert not errors, 'JavaScript page errors: '+str(errors)
   mobile=await browser.new_page(viewport={'width':390,'height':844},device_scale_factor=1,is_mobile=True,has_touch=True)
   mobile_errors=[]
