@@ -32,8 +32,8 @@ assert required_routes <= parser.section_routes, f'missing page routes: {require
 required_ids={'mainNav','mobileMenu','introNovaLab','discoverNovaLab','projectGrid','projectSearch','projectForm','adminLogin','loginForm','adminDashboard','publish','fCoverFile','fGalleryFiles','fVideoFile'}
 assert required_ids <= parser.ids, f'missing ID: {required_ids-parser.ids}'
 assert not parser.duplicates, f'duplicate ids: {parser.duplicates}'
-assert '<script defer src="./app.js?v=14"></script>' in html
-assert '<link rel="stylesheet" href="./studio-v14.css?v=14">' in html
+assert '<script defer src="./app.js?v=15"></script>' in html
+assert '<link rel="stylesheet" href="./studio-v14.css?v=15">' in html
 assert 'Windows-Launcher herunterladen' in html
 assert 'NovaLab Code für Windows' in html
 assert 'NovaLab Studios' in html
@@ -57,3 +57,9 @@ assert 'function renderFeatured()' in js and 'formDirty' in js
 backend=(ROOT/'backend'/'novalab-site-api'/'index.ts').read_text(encoding='utf8')
 assert 'if(allowRoute&&' in backend and 'assets' in backend
 print('OK: featured projects, draft protection and backend URL validation present')
+
+# Archived editions must not load modern, incompatible JavaScript.
+for old in ("novalab-v8.html","novalab-v11.html","novalab-v12.html","novalab-v13.html"):
+    content=(ROOT/old).read_text(encoding="utf8")
+    assert 'url=./index.html' in content and 'location.replace' in content, f"stale page not redirected: {old}"
+print("OK: all legacy website routes redirect to the compatible current version")
