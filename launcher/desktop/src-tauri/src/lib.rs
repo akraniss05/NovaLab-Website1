@@ -742,8 +742,10 @@ mod audit_tests {
         let zip_path=temp.path("duplicate.zip");
         let file=fs::File::create(&zip_path).unwrap();
         let mut writer=zip::ZipWriter::new(file);
-        for _ in 0..2 {
-            writer.start_file("index.html",zip::write::SimpleFileOptions::default()).unwrap();
+        // ZIP writer itself forbids identical names. Windows is also
+        // case-insensitive: these two distinct ZIP names still collide.
+        for name in ["index.html","INDEX.HTML"] {
+            writer.start_file(name,zip::write::SimpleFileOptions::default()).unwrap();
             writer.write_all(b"NovaLab duplicate").unwrap();
         }
         writer.finish().unwrap();
