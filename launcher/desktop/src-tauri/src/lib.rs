@@ -573,3 +573,64 @@ mod updater_tests {
         assert!(parse_launcher_version("1.0.0")>parse_launcher_version("0.99.99"));
     }
 }
+
+#[cfg(test)]
+mod audit_tests {
+    use super::{valid_semver,extract_verified_zip};
+    use std::{fs,io::Write,path::PathBuf};
+    use uuid::Uuid;
+    struct Scratch(PathBuf);
+    impl Scratch {
+        fn new() -> Self {
+            let root=std::env::temp_dir().join(format!("novalab-zip-audit-{}",Uuid::new_v4()));
+            fs::create_dir_all(&root).expect("create audit temp dir");
+            Self(root)
+        }
+        fn path(&self,name:&str)->PathBuf { self.0.join(name) }
+    }
+    impl Drop for Scratch { fn drop(&mut self){let _=fs::remove_dir_all(&self.0);} }
+    #[test]
+    fn rejects_malformed_game_versions() {
+        for invalid in ["","1","1.0","1.0.0.0","1.0.x","../1","1..0","1.2.-3"," 1.2.3","1.2.3-beta"] {
+            assert!(!valid_semver(invalid),"accepted malformed game version: {}",invalid);
+        }
+        for valid in ["0.0.1","1.2.3","10.100.1234"] {
+            assert!(valid_semver(valid),"rejected valid version: {}",valid);
+        }
+    }
+    #[test]
+    fn extracts_normal_game_archive_and_checks_entry(){
+        let tmp=Scratch::new();
+        let zip_path=tmp.path("normal.zip");
+        let file=fs::File::create(&zip_path).unwrap();
+        let mut writer=zip::ZipWriter::new(file);
+        writer.start_file("index.html",zip::write::SimpleFileOptions::default()).unwrap();
+        writer.write_all(b"<!doctype html><title>NovaLab QA</title>").unwrap();
+        writer.finish().unwrap();
+        let dest=tmp.path("game");
+        fs::create_dir_all(&dest).unwrap();
+        extract_verified_zip(&zip_path,&dest,"index.html").unwrap();
+        assert_eq!(fs::read(dest.join("index.html")).unwrap(),b"<!doctype html><title>NovaLab QA</title>");
+        let missing=tmp.path("missing");
+        fs::create_dir_all(&missing).unwrap();
+        assert!(extract_verified_zip(&zip_path,&missing,"Game.exe").is_err());
+    }
+    #[test]
+    fn rejects_corrupted_zip_and_path_traversal() {
+        let tmp=Scratch::new();
+        let broken=tmp.path("broken.zip");
+        fs::write(&broken,b"not a zip archive").unwrap();
+        let dest=tmp.path("game");
+        fs::create_dir_all(&dest).unwrap();
+        assert!(extract_verified_zip(&broken,&dest,"index.html").is_err());
+
+        let bad=tmp.path("path-traversal.zip");
+        let file=fs::File::create(&bad).unwrap();
+        let mut writer=zip::ZipWriter::new(file);
+        writer.start_file("../escape.txt",zip::write::SimpleFileOptions::default()).unwrap();
+        writer.write_all(b"must never escape").unwrap();
+        writer.finish().unwrap();
+        assert!(extract_verified_zip(&bad,&dest,"index.html").is_err());
+        assert!(!tmp.path("escape.txt").exists());
+    }
+}
