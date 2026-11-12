@@ -1,7 +1,7 @@
 {
   "name": "novalab-studios-launcher",
   "private": true,
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "NovaLab Studios — Rust/Tauri 2 desktop launcher and browser test",
   "scripts": {
     "dev": "node scripts/dev-server.cjs",
