@@ -27,6 +27,9 @@ impl Drop for InstallGuard {
 fn reserve_install(app:&AppHandle,id:&str)->Result<InstallGuard,String>{
     let state=app.state::<InstallRegistry>();
     let mut active=state.0.lock().map_err(|_|"Installationsverwaltung nicht verfügbar")?;
+    if LAUNCHER_UPDATING.load(Ordering::Acquire) {
+        return Err("Launcher-Update läuft. Bitte nach dem Neustart installieren oder deinstallieren.".into());
+    }
     if !active.insert(id.to_owned()) {
         return Err("Dieses Spiel wird bereits installiert. Bitte den laufenden Vorgang beenden.".into());
     }
@@ -125,6 +128,10 @@ fn open_external(url: String) -> Result<serde_json::Value, String> {
 }
 
 async fn download_task(app: AppHandle, id: String, url: String, target: PathBuf, cancelled: Arc<AtomicBool>) {
+    // The selected target is only created after the complete stream was
+    // written and checked. Crashes should never leave a partial final filename.
+    let staging=target.with_file_name(format!("{}.novalab-part-{}",
+        target.file_name().unwrap_or_default().to_string_lossy(),Uuid::new_v4()));
     let result: Result<(), String> = async {
         let client = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::custom(|attempt| {
@@ -139,7 +146,7 @@ async fn download_task(app: AppHandle, id: String, url: String, target: PathBuf,
         const MAX_GENERIC_DOWNLOAD:u64=2_000_000_000;
         let total = response.content_length();
         if total.is_some_and(|n|n>MAX_GENERIC_DOWNLOAD){return Err("Download überschreitet das 2-GB-Limit.".into())}
-        let mut file = tokio::fs::OpenOptions::new().write(true).create_new(true).open(&target).await.map_err(|e|e.to_string())?;
+        let mut file = tokio::fs::OpenOptions::new().write(true).create_new(true).open(&staging).await.map_err(|e|e.to_string())?;
         let mut downloaded = 0_u64;
         let start = Instant::now();
         let mut last = Instant::now();
@@ -158,11 +165,14 @@ async fn download_task(app: AppHandle, id: String, url: String, target: PathBuf,
         file.flush().await.map_err(|e|e.to_string())?;
         if total.is_some_and(|n|n!=downloaded){return Err("Der Download ist unvollständig.".into())}
         if cancelled.load(Ordering::Relaxed) { return Err("__cancelled__".into()); }
-        emit(&app,Progress{id:id.clone(),status:"done".into(),percent:Some(100),speed:None,message:Some("Download gespeichert, nicht automatisch installiert".into()),path:Some(target.to_string_lossy().into_owned())});
+        drop(file);
+        if target.exists(){return Err("Zieldatei wurde während des Downloads angelegt. Anderen Namen wählen.".into());}
+        tokio::fs::rename(&staging,&target).await.map_err(|e|format!("Download konnte nicht abgeschlossen werden: {e}"))?;
+        emit(&app,Progress{id:id.clone(),status:"done".into(),percent:Some(100),speed:None,message:Some("Download vollständig gespeichert".into()),path:Some(target.to_string_lossy().into_owned())});
         Ok(())
     }.await;
     if let Err(err) = result {
-        let _ = tokio::fs::remove_file(&target).await;
+        let _ = tokio::fs::remove_file(&staging).await;
         let user_cancelled = cancelled.load(Ordering::Relaxed) || err=="__cancelled__";
         emit(&app, Progress{id:id.clone(),status:if user_cancelled{"cancelled"}else{"error"}.into(),percent:None,speed:None,message:Some(if user_cancelled{"Abgebrochen".into()}else{err}),path:None});
     }
@@ -182,6 +192,7 @@ async fn download_game(app:AppHandle, registry:State<'_,DownloadRegistry>, game_
         .set_file_name(&suggested).blocking_save_file();
     let Some(file) = selected else {return Ok(serde_json::json!({"cancelled":true}));};
     let path=file.into_path().map_err(|e|e.to_string())?;
+    if LAUNCHER_UPDATING.load(Ordering::Acquire) {return Err("Launcher-Update läuft. Bitte später herunterladen.".into());}
     if path.exists() {return Err("Die Zieldatei existiert bereits. Bitte anderen Dateinamen wählen".into());}
     let id=Uuid::new_v4().to_string();
     let flag=Arc::new(AtomicBool::new(false));
@@ -255,6 +266,13 @@ fn read_installed(app:&AppHandle,id:&str)->Result<InstalledRelease,String>{
         || Path::new(&manifest.entry).components().any(|c|matches!(c,std::path::Component::ParentDir|std::path::Component::Prefix(_))){
         return Err("Ungültige oder beschädigte Installationsdaten".into());
     }
+    let base=installed_dir(app)?.join(id).join(&manifest.version).canonicalize()
+        .map_err(|_|"Installationsdateien fehlen. Bitte Spiel neu installieren.".to_string())?;
+    let entry=base.join(&manifest.entry).canonicalize()
+        .map_err(|_|"Startdatei fehlt. Bitte Spiel neu installieren.".to_string())?;
+    if !entry.starts_with(&base)||!entry.is_file() {
+        return Err("Installierte Startdatei ist nicht vorhanden oder unsicher.".into());
+    }
     Ok(manifest)
 }
 #[tauri::command]
@@ -294,8 +312,9 @@ fn launch_installed_game(app:AppHandle, game_id:String)->Result<serde_json::Valu
 fn uninstall_installed_game(app:AppHandle, game_id:String)->Result<serde_json::Value,String>{
     // Prevent uninstall from racing an in-progress update for the same game.
     let _install_guard=reserve_install(&app,&game_id)?;
-    let manifest=read_installed(&app,&game_id)?;
-    if manifest.game_id!=game_id {return Err("Ungültiges Installationsmanifest".into())}
+    // Broken installations must remain removable even when the manifest or
+    // executable has been deleted by antivirus tools or a previous crash.
+    let _manifest_path=installed_manifest(&app,&game_id)?;
     let root=installed_dir(&app)?.canonicalize().map_err(|e|e.to_string())?;
     let path=root.join(&game_id);
     let canonical=path.canonicalize().map_err(|e|e.to_string())?;
@@ -514,6 +533,14 @@ async fn install_launcher_update(app:AppHandle) -> Result<serde_json::Value,Stri
         return Err("Ein Launcher-Update wird bereits heruntergeladen.".into());
     }
     let _guard=UpdateGuard;
+    // Atomic updater flag is set before checking the registry. install/uninstall
+    // checks the same flag while holding this registry lock, preventing races.
+    if !app.state::<InstallRegistry>().0.lock().map_err(|_|"Installationsstatus nicht verfügbar")?.is_empty() {
+        return Err("Ein Spiel wird noch installiert oder entfernt. Bitte erst den Vorgang abschließen.".into());
+    }
+    if !app.state::<DownloadRegistry>().0.lock().map_err(|_|"Downloadstatus nicht verfügbar")?.is_empty() {
+        return Err("Ein Spiel-Download läuft. Bitte zuerst abschließen oder abbrechen.".into());
+    }
     emit_launcher_update(&app,"checking",Some(0),"Prüfe offizielle NovaLab Releases");
     let info=available_launcher_update().await?.ok_or("Dein Launcher ist bereits aktuell.")?;
     let url=info["url"].as_str().ok_or("Ungültiger Downloadlink")?;
