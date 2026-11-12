@@ -199,11 +199,18 @@ async fn download_game(app:AppHandle, registry:State<'_,DownloadRegistry>, game_
         .set_file_name(&suggested).blocking_save_file();
     let Some(file) = selected else {return Ok(serde_json::json!({"cancelled":true}));};
     let path=file.into_path().map_err(|e|e.to_string())?;
-    if LAUNCHER_UPDATING.load(Ordering::Acquire) {return Err("Launcher-Update läuft. Bitte später herunterladen.".into());}
     if path.exists() {return Err("Die Zieldatei existiert bereits. Bitte anderen Dateinamen wählen".into());}
     let id=Uuid::new_v4().to_string();
     let flag=Arc::new(AtomicBool::new(false));
-    registry.0.lock().unwrap().insert(id.clone(),flag.clone());
+    // Synchronize admission with the updater's registry check. A check outside
+    // the mutex allowed an update and a new download to start simultaneously.
+    {
+        let mut active=registry.0.lock().map_err(|_|"Downloadverwaltung nicht verfügbar")?;
+        if LAUNCHER_UPDATING.load(Ordering::Acquire) {
+            return Err("Launcher-Update läuft. Bitte später herunterladen.".into());
+        }
+        active.insert(id.clone(),flag.clone());
+    }
     tauri::async_runtime::spawn(download_task(app,id.clone(),url,path,flag));
     Ok(serde_json::json!({"ok":true,"downloadId":id}))
 }
