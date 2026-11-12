@@ -364,18 +364,36 @@ async fn install_game_version(app:AppHandle, game_id:String, version:String, url
       fs::rename(&stage,&live).map_err(|e|e.to_string())?;
       let manifest=InstalledRelease{game_id:game_id.clone(),version:version.clone(),entry:entry.clone(),sha256:sha256.to_ascii_lowercase(),format:game_format.clone()};
       let staging_manifest=game_root.join("current.tmp.json");
-      fs::write(&staging_manifest,serde_json::to_vec_pretty(&manifest).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
       let current=game_root.join("current.json");
       let backup=game_root.join("current.backup.json");
-      if current.exists(){
-          let _=fs::remove_file(&backup);
-          fs::rename(&current,&backup).map_err(|e|format!("Alte Spielversion konnte nicht gesichert werden: {e}"))?;
-      }
-      if let Err(err)=fs::rename(&staging_manifest,&current) {
-          if backup.exists(){let _=fs::rename(&backup,&current);}
-          return Err(format!("Neue Spielversion konnte nicht aktiviert werden: {err}"));
+      let previous=read_installed(&app,&game_id).ok().map(|old|old.version);
+      let activation:Result<(),String>=(||{
+          fs::write(&staging_manifest,serde_json::to_vec_pretty(&manifest).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
+          if current.exists(){
+              if backup.exists(){fs::remove_file(&backup).map_err(|e|e.to_string())?;}
+              fs::rename(&current,&backup).map_err(|e|format!("Alte Spielversion konnte nicht gesichert werden: {e}"))?;
+          }
+          if let Err(err)=fs::rename(&staging_manifest,&current){
+              if backup.exists(){let _=fs::rename(&backup,&current);}
+              return Err(format!("Neue Spielversion konnte nicht aktiviert werden: {err}"));
+          }
+          Ok(())
+      })();
+      if let Err(reason)=activation{
+          let _=fs::remove_dir_all(&live);
+          let _=fs::remove_file(&staging_manifest);
+          return Err(reason);
       }
       let _=fs::remove_file(&backup);
+      // Keep one previous release as a rollback fallback; evict older ones.
+      if let Ok(dirs)=fs::read_dir(&game_root){
+          for dir in dirs.flatten(){
+              let name=dir.file_name().to_string_lossy().to_string();
+              if dir.path().is_dir() && valid_semver(&name) && name!=version && previous.as_deref()!=Some(name.as_str()){
+                  let _=fs::remove_dir_all(dir.path());
+              }
+          }
+      }
       emit_install(&app,&game_id,"done",Some(100),"Spiel erfolgreich installiert");
       Ok(serde_json::json!({"ok":true,"version":version,"gameId":game_id}))
     }.await;
