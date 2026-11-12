@@ -334,26 +334,43 @@ fn uninstall_installed_game(app:AppHandle, game_id:String)->Result<serde_json::V
     fs::remove_dir_all(&canonical).map_err(|e|format!("Spiel konnte nicht entfernt werden: {e}"))?;
     Ok(serde_json::json!({"ok":true,"gameId":game_id}))
 }
+fn safe_zip_member(raw:&str)->bool {
+    !raw.is_empty() && !raw.starts_with('/') && !raw.contains('\\')
+        && !raw.contains(':') && !raw.chars().any(|c|c.is_control())
+}
 fn extract_verified_zip(bytes_path:&Path, dest:&Path, entry:&str)->Result<(),String>{
     use std::io::Read;
     let file=fs::File::open(bytes_path).map_err(|e|e.to_string())?;
     let mut archive=zip::ZipArchive::new(file).map_err(|_|"Ungültiges ZIP-Archiv".to_string())?;
     if archive.len()>3000 {return Err("Zu viele Dateien im Spielarchiv".into())}
-    let mut uncompressed=0_u64;
+    let mut declared=0_u64;
+    let mut extracted=0_u64;
+    let mut seen=HashSet::new();
     for i in 0..archive.len() {
-        let item=archive.by_index(i).map_err(|e|e.to_string())?;
+        let mut item=archive.by_index(i).map_err(|e|e.to_string())?;
+        if !safe_zip_member(item.name()){return Err("Ungültiger ZIP-Dateiname".into());}
         let name=item.enclosed_name().ok_or("Unsicherer Dateipfad im ZIP")?.to_owned();
-        // Never extract symlinks or hardlinks from untrusted archives.
-        if item.unix_mode().is_some_and(|m| m & 0o170000 == 0o120000) {return Err("ZIP-Links sind nicht erlaubt".into())}
-        uncompressed=uncompressed.saturating_add(item.size());
-        if uncompressed>1_000_000_000 {return Err("Entpacktes Spiel überschreitet 1 GB".into())}
+        if !seen.insert(name.to_string_lossy().to_ascii_lowercase()) {
+            return Err("Doppelte ZIP-Dateinamen sind nicht erlaubt".into());
+        }
+        if item.unix_mode().is_some_and(|m|m & 0o170000 == 0o120000){
+            return Err("ZIP-Links sind nicht erlaubt".into());
+        }
+        let member_size=item.size();
+        declared=declared.saturating_add(member_size);
+        if declared>1_000_000_000{return Err("Entpacktes Spiel überschreitet 1 GB".into());}
         let out=dest.join(name);
         if item.is_dir(){fs::create_dir_all(&out).map_err(|e|e.to_string())?;continue;}
-        if let Some(parent)=out.parent(){fs::create_dir_all(parent).map_err(|e|e.to_string())?}
+        if let Some(parent)=out.parent(){fs::create_dir_all(parent).map_err(|e|e.to_string())?;}
         let mut writer=fs::File::create(&out).map_err(|e|e.to_string())?;
-        std::io::copy(&mut item.take(1_000_000_001),&mut writer).map_err(|e|e.to_string())?;
+        let remaining=1_000_000_000_u64.saturating_sub(extracted);
+        let written=std::io::copy(&mut item.take(remaining+1),&mut writer).map_err(|e|e.to_string())?;
+        extracted=extracted.saturating_add(written);
+        if extracted>1_000_000_000 || written!=member_size{
+            return Err("ZIP-Mitglied ist beschädigt oder überschreitet die Größenbegrenzung".into());
+        }
     }
-    if !dest.join(entry).is_file(){return Err("Die angegebene Startdatei fehlt im ZIP".into())}
+    if !dest.join(entry).is_file(){return Err("Die angegebene Startdatei fehlt im ZIP".into());}
     Ok(())
 }
 // Stage a freshly SHA-256-verified release in place. A crashed/antivirus-damaged
@@ -710,6 +727,29 @@ mod audit_tests {
         let previous=fs::read(stale.join("index.html")).unwrap();
         assert!(super::swap_verified_stage(&non_existent,&stale).is_err());
         assert_eq!(fs::read(stale.join("index.html")).unwrap(),previous);
+    }
+    #[test]
+    fn blocks_windows_unsafe_zip_filenames() {
+        assert!(super::safe_zip_member("index.html"));
+        assert!(!super::safe_zip_member("../\\evil.exe"));
+        assert!(!super::safe_zip_member("NUL:payload.exe"));
+        assert!(!super::safe_zip_member("/absolute/file.exe"));
+        assert!(!super::safe_zip_member("folder\\bad.exe"));
+    }
+    #[test]
+    fn duplicate_zip_names_are_rejected(){
+        let temp=Scratch::new();
+        let zip_path=temp.path("duplicate.zip");
+        let file=fs::File::create(&zip_path).unwrap();
+        let mut writer=zip::ZipWriter::new(file);
+        for _ in 0..2 {
+            writer.start_file("index.html",zip::write::SimpleFileOptions::default()).unwrap();
+            writer.write_all(b"NovaLab duplicate").unwrap();
+        }
+        writer.finish().unwrap();
+        let destination=temp.path("extract");
+        fs::create_dir_all(&destination).unwrap();
+        assert!(extract_verified_zip(&zip_path,&destination,"index.html").is_err());
     }
     #[test]
     fn rejects_malformed_game_versions() {
