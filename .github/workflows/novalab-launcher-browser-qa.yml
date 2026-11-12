@@ -10,6 +10,7 @@ on:
       - 'launcher/tests/qa_deep_browser.py'
       - 'launcher/tests/qa_backend_permissions.py'
       - 'launcher/tests/qa_session_offline.py'
+      - 'launcher/tests/qa_import_safety.py'
       - 'launcher/tests/qa_live_assets.py'
       - 'launcher/tests/qa_backup_import.py'
       - '.github/workflows/novalab-launcher-browser-qa.yml'
@@ -45,6 +46,8 @@ jobs:
         run: python launcher/tests/qa_backend_permissions.py
       - name: Inspect published game assets and ZIP files without modifying data
         run: python launcher/tests/qa_live_assets.py
+      - name: Test backup imports and active installation removal
+        run: python launcher/tests/qa_import_safety.py
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
