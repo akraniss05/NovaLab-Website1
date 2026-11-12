@@ -1,6 +1,6 @@
 [package]
 name = "novalab_launcher"
-version = "0.9.0"
+version = "0.10.0"
 description = "NovaLab Studios – lightweight game launcher"
 authors = ["NovaLab Studios"]
 edition = "2021"
