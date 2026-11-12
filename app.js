@@ -77,7 +77,8 @@ else{panel.append(makeLink("Projektvideo öffnen ↗",s,"btn btn-ghost"))}
 panel.append(el("p","","Projektvideo"));return panel}
 function route(){let hash;try{hash=decodeURIComponent(location.hash.slice(1)||"home")}catch{hash="home"}hash=hash.replace(/[^a-z0-9/-]/gi,"").toLowerCase();let page=hash.startsWith("project/")?"project":ROUTES.includes(hash)?hash:"home";document.querySelectorAll(".page").forEach(e=>{e.hidden=e.dataset.page!==page});document.querySelectorAll(".nav-link").forEach(e=>{let is=(e.dataset.go===page)||(page==="code"||page==="music"?e.dataset.go==="learning":page==="project"&&e.dataset.go==="projects");e.classList.toggle("active",is);if(is)e.setAttribute("aria-current","page");else e.removeAttribute("aria-current")});
 if(page==="project")renderDetail(hash.slice(8));$("mainNav").classList.remove("open");$("mobileMenu").setAttribute("aria-expanded","false");$("mobileMenu").setAttribute("aria-label","Menü öffnen");window.scrollTo(0,0);document.title=(page==="home"?"NovaLab Studios":page==="project"?($("detailTitle").textContent+" | NovaLab Studios"):(page.charAt(0).toUpperCase()+page.slice(1))+" | NovaLab Studios")}
-async function loadData(){let loaded=false;try{const result=await apiRequest("/projects");if(!Array.isArray(result.projects))throw Error("Invalid projects");projects=result.projects.map((p,i)=>verifyOfficialProject(normalize(p,i)));loaded=true}catch(e){console.info("NovaLab backend unavailable, using fallback",e)}
+async function loadData(strict=false){let loaded=false;try{const result=await apiRequest("/projects");if(!Array.isArray(result.projects))throw Error("Invalid projects");projects=result.projects.map((p,i)=>verifyOfficialProject(normalize(p,i)));loaded=true}catch(e){console.info("NovaLab backend unavailable, using fallback",e)}
+if(!loaded&&strict)return "error";
 if(!loaded){try{const r=await fetch("./data/projects.json?v=10",{cache:"no-store"});if(!r.ok)throw Error("HTTP "+r.status);const data=await r.json();if(!Array.isArray(data))throw Error("Invalid JSON");projects=data.map((p,i)=>verifyOfficialProject(normalize(p,i)))}catch(e){console.info("Using default projects",e)}}
 renderProjects();if(location.hash.startsWith("#project/"))route();return loaded?"backend":"fallback"}
 function renderAdminList(){const root=$("adminRows");root.replaceChildren();$("dashboardProjects").textContent=String(projects.length);projects.forEach(p=>{const row=el("div","admin-row");const label=el("div");label.append(el("b","",p.title),el("small","",CAT[p.category]+" · "+p.status));const acts=el("div","admin-row-actions");let edit=el("button","","Bearbeiten");edit.type="button";edit.onclick=()=>editProject(p.id);let del=el("button","","Löschen");del.type="button";del.onclick=()=>{if(confirm("Projekt „"+p.title+"“ wirklich aus der Liste entfernen?")){projects=projects.filter(x=>x.id!==p.id);pendingFiles.delete(p.id);dirty=true;renderProjects();state("Löschung vorgemerkt – noch nicht veröffentlicht.")}};acts.append(edit,del);row.append(label,acts);root.append(row)})}
@@ -150,13 +151,14 @@ async function publish(){
   }
   state("Projektinformationen werden veröffentlicht …");
   const result=await apiRequest("/projects",{method:"PUT",authenticated:true,body:{projects}});
-  dirty=false;await loadData();showDashboard($("activeAdmin").textContent);
-  state("Erfolgreich veröffentlicht: "+result.count+" Projekte. Änderungen sind direkt auf dem Backend verfügbar.");
+  dirty=false;const source=await loadData(true);showDashboard($("activeAdmin").textContent);
+  if(source==="backend")state("Erfolgreich veröffentlicht: "+result.count+" Projekte. Änderungen sind direkt auf dem Backend verfügbar.");
+  else state("Veröffentlicht: "+result.count+" Projekte. Die Rückprüfung ist momentan nicht erreichbar – lokale Daten bleiben erhalten.",true);
  }catch(e){state("Veröffentlichung fehlgeschlagen: "+e.message,true)}finally{button.disabled=false}
 }
 async function reload(){
  if((dirty||formDirty)&&!confirm("Nicht gespeicherte Änderungen verwerfen?"))return;
- const source=await loadData();if(source!=="backend"){state("Backend nicht erreichbar – lokale Ersatzdaten angezeigt. Keine Live-Daten überschreiben.",true);return}
+ const source=await loadData(true);if(source!=="backend"){state("Backend nicht erreichbar – lokale Ersatzdaten angezeigt. Keine Live-Daten überschreiben.",true);return}
  dirty=false;formDirty=false;pendingFiles.clear();selectedId="";$("projectForm").reset();clearMediaPreviews();$("formTitle").textContent="Projekt hinzufügen";state("Öffentliche Projekte aus dem Backend neu geladen.");
 }
 function clearMediaPreviews(){temporaryUrls.forEach(url=>URL.revokeObjectURL(url));temporaryUrls=[];$("coverPreview").replaceChildren();$("galleryPreview").replaceChildren();$("videoPreview").textContent=""}
