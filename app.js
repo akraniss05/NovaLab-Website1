@@ -26,7 +26,7 @@ const LOCAL_MEDIA=/^\.\/assets\/(?:[a-z0-9_-]+\/){0,4}[a-z0-9._-]+\.(?:svg|png|j
 function safeLink(input,internal){const val=text(input,800);if(internal&&(/^#[a-z][a-z0-9/-]*$/i.test(val)||LOCAL_PAGE.test(val)))return val;try{const u=new URL(val);if(u.protocol==="https:"&&!u.username&&!u.password)return u.href}catch(e){}return ""}
 function safeMedia(input){const val=text(input,1000);return LOCAL_MEDIA.test(val)?val:safeLink(val,false)}
 function category(c){return CAT[c]?c:"tools"}
-function normalize(p,index){p=p||{};let tags=Array.isArray(p.tags)?p.tags:String(p.tags||"").split(",");let gallery=Array.isArray(p.gallery)?p.gallery:String(p.gallery||"").split("\n");return {id:text(p.id,60).replace(/[^a-z0-9-]/gi,"-").toLowerCase()||"project-"+index,title:text(p.title,90)||"Ohne Titel",summary:text(p.summary||p.description,250),description:text(p.details||p.longDescription||p.description,6000),category:category(p.category),status:text(p.status,50)||"In Planung",link:safeLink(p.link||p.url,true),tags:tags.map(t=>text(t,35)).filter(Boolean).slice(0,15),cover:safeMedia(p.cover),gallery:gallery.map(safeMedia).filter(Boolean).slice(0,15),video:safeMedia(p.video||p.videoUrl),featured:p.featured!==false,updated:text(p.updated,30)||""}}
+function normalize(p,index){p=p||{};let tags=Array.isArray(p.tags)?p.tags:String(p.tags||"").split(",");let gallery=Array.isArray(p.gallery)?p.gallery:String(p.gallery||"").split("\n");return {id:text(p.id,70).replace(/[^a-z0-9-]/gi,"-").toLowerCase()||"project-"+index,title:text(p.title,90)||"Ohne Titel",summary:text(p.summary||p.description,250),description:text(p.details||p.longDescription||p.description,6000),category:category(p.category),status:text(p.status,50)||"In Planung",link:safeLink(p.link||p.url,true),tags:tags.map(t=>text(t,35)).filter(Boolean).slice(0,15),cover:safeMedia(p.cover),gallery:gallery.map(safeMedia).filter(Boolean).slice(0,15),video:safeMedia(p.video||p.videoUrl),featured:p.featured!==false,updated:text(p.updated,30)||""}}
 function verifyOfficialProject(p){
  // Names, summaries and statuses are controlled by the website administrators.
  // Never rewrite persisted project data silently on the visitor's browser.
@@ -41,6 +41,7 @@ const DEFAULTS=[
 let projects=DEFAULTS.map((p,i)=>verifyOfficialProject(normalize(p,i))),filter="all",query="",selectedId="",pendingFiles=new Map(),sessionToken=sessionStorage.getItem("novalab_site_session")||"",dirty=false,formDirty=false,catalogRevision=null,publishing=false,temporaryUrls=[];
 let publishedSnapshot=projects.map(p=>({...p,tags:[...p.tags],gallery:[...p.gallery]}));
 function snapshot(){return projects.map(p=>({...p,tags:[...p.tags],gallery:[...p.gallery]}))}
+function validRevision(value){return /^[a-f0-9]{64}$/i.test(value||"")||/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value||"")}
 function state(msg,error){const e=$("adminStatus");if(!e)return;e.textContent=msg;e.style.color=error?"#ff98ad":"#b8decf"}
 function authState(msg,error){const e=$("loginStatus");if(!e)return;e.textContent=msg;e.style.color=error?"#ff98ad":"#b8decf"}
 function setPublishing(active){
@@ -78,7 +79,7 @@ else{panel.append(makeLink("Projektvideo öffnen ↗",s,"btn btn-ghost"))}
 panel.append(el("p","","Projektvideo"));return panel}
 function route(){let hash;try{hash=decodeURIComponent(location.hash.slice(1)||"home")}catch{hash="home"}hash=hash.replace(/[^a-z0-9/-]/gi,"").toLowerCase();let page=hash.startsWith("project/")?"project":ROUTES.includes(hash)?hash:"home";document.querySelectorAll(".page").forEach(e=>{e.hidden=e.dataset.page!==page});document.querySelectorAll(".nav-link").forEach(e=>{let is=(e.dataset.go===page)||(page==="code"||page==="music"?e.dataset.go==="learning":page==="project"&&e.dataset.go==="projects");e.classList.toggle("active",is);if(is)e.setAttribute("aria-current","page");else e.removeAttribute("aria-current")});
 if(page==="project")renderDetail(hash.slice(8));$("mainNav").classList.remove("open");$("mobileMenu").setAttribute("aria-expanded","false");$("mobileMenu").setAttribute("aria-label","Menü öffnen");window.scrollTo(0,0);document.title=(page==="home"?"NovaLab Studios":page==="project"?($("detailTitle").textContent+" | NovaLab Studios"):(page.charAt(0).toUpperCase()+page.slice(1))+" | NovaLab Studios")}
-async function loadData(strict=false){let loaded=false;try{const result=await apiRequest("/projects");if(!Array.isArray(result.projects))throw Error("Invalid projects");projects=result.projects.map((p,i)=>verifyOfficialProject(normalize(p,i)));catalogRevision=/^[a-f0-9]{64}$/.test(result.revision||"")?result.revision:null;loaded=true}catch(e){console.info("NovaLab backend unavailable, using fallback",e)}
+async function loadData(strict=false){let loaded=false;try{const result=await apiRequest("/projects");if(!Array.isArray(result.projects))throw Error("Invalid projects");projects=result.projects.map((p,i)=>verifyOfficialProject(normalize(p,i)));catalogRevision=validRevision(result.revision)?result.revision:null;loaded=true}catch(e){console.info("NovaLab backend unavailable, using fallback",e)}
 if(!loaded&&strict)return "error";
 if(!loaded){catalogRevision=null;try{const r=await fetch("./data/projects.json?v=10",{cache:"no-store",signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error("HTTP "+r.status);const data=await r.json();if(!Array.isArray(data))throw Error("Invalid JSON");projects=data.map((p,i)=>verifyOfficialProject(normalize(p,i)))}catch(e){console.info("Using default projects",e)}}
 publishedSnapshot=snapshot();const notice=$("catalogNotice");if(notice){notice.hidden=loaded;notice.textContent=loaded?"":"Der aktuelle Projektkatalog ist momentan nicht erreichbar. Hier werden möglicherweise ältere Informationen angezeigt."}renderProjects();if(location.hash.startsWith("#project/"))route();return loaded?"backend":"fallback"}
@@ -93,11 +94,23 @@ let link=text($("fLink").value);if(link&&!safeLink(link,true))return formError("
 const coverInput=text($("fCoverUrl").value);if(coverInput&&!safeMedia(coverInput))return formError("Bildlink muss mit https:// beginnen.");
 const videoInput=text($("fVideoUrl").value);if(videoInput&&!safeMedia(videoInput))return formError("Video-Link muss mit https:// beginnen.");
 const galleryText=$("fGallery").value.split("\n").map(x=>x.trim()).filter(Boolean);if(galleryText.some(x=>!safeMedia(x)))return formError("Galerie: bitte nur gültige HTTPS-Bildlinks oder bereits hochgeladene Bilder eintragen.");
-const id=selectedId||"project-"+Date.now().toString(36),old=projects.find(p=>p.id===id);
+const id=selectedId||"project-"+crypto.randomUUID().replace(/-/g,"").slice(0,16),old=projects.find(p=>p.id===id);
 const item=normalize({id,title,summary,details:$("fDescription").value||summary,category:$("fCategory").value,status:$("fStatus").value,link,tags:$("fTags").value,cover:coverInput,gallery:galleryText,video:videoInput,featured:$("fFeatured").checked,updated:new Date().toISOString().slice(0,10)});
 const files={cover:$("fCoverFile").files[0]||null,gallery:[...$("fGalleryFiles").files],video:$("fVideoFile").files[0]||null};
-if(files.cover||files.gallery.length||files.video){const images=["image/png","image/jpeg","image/webp"],videos=["video/mp4","video/webm"];if((files.cover&&!images.includes(files.cover.type))||files.gallery.some(file=>!images.includes(file.type))||(files.video&&!videos.includes(files.video.type)))return formError("Nur PNG/JPG/WebP für Bilder und MP4/WebM für Videos erlaubt.");for(const file of [files.cover,...files.gallery,files.video].filter(Boolean)){if(file.size>(images.includes(file.type)?4:12)*1024*1024)return formError("Datei zu groß: Bilder max. 4 MB, Videos max. 12 MB. Größere Videos bitte auf YouTube bereitstellen.");}
-pendingFiles.set(id,{...files,uploaded:{cover:"",gallery:[],video:""}})}
+const existing=pendingFiles.get(id);
+if(item.gallery.length+(existing?.gallery.length||0)+files.gallery.length>15)return formError("Maximal 15 Galeriebilder pro Projekt erlaubt. Bitte zuerst Bilder entfernen.");
+if(files.cover||files.gallery.length||files.video){
+ const images=["image/png","image/jpeg","image/webp"],videos=["video/mp4","video/webm"];
+ if((files.cover&&!images.includes(files.cover.type))||files.gallery.some(file=>!images.includes(file.type))||(files.video&&!videos.includes(files.video.type)))return formError("Nur PNG/JPG/WebP für Bilder und MP4/WebM für Videos erlaubt.");
+ for(const file of [files.cover,...files.gallery,files.video].filter(Boolean)){
+  if(file.size>(images.includes(file.type)?4:12)*1024*1024)return formError("Datei zu groß: Bilder max. 4 MB, Videos max. 12 MB. Größere Videos bitte auf YouTube bereitstellen.");
+ }
+ const queued=existing||{cover:null,gallery:[],video:null,uploaded:{cover:"",gallery:[],video:""}};
+ if(files.cover){queued.cover=files.cover;queued.uploaded.cover=""}
+ if(files.gallery.length)queued.gallery.push(...files.gallery);
+ if(files.video){queued.video=files.video;queued.uploaded.video=""}
+ pendingFiles.set(id,queued);
+}
 if(old)projects=projects.map(x=>x.id===id?item:x);else projects.push(item);dirty=true;renderProjects();selectedId=id;$("fId").value=id;$("formTitle").textContent="Projekt bearbeiten";for(const field of ["fCoverFile","fGalleryFiles","fVideoFile"])$(field).value="";clearMediaPreviews();formDirty=false;state("Projekt vorgemerkt. Zum Übernehmen auf „Auf Website veröffentlichen“ klicken.");return true}
 
 async function apiRequest(path,opts={}){
@@ -112,7 +125,7 @@ async function apiRequest(path,opts={}){
  }catch(e){throw Error(e&&e.name==="AbortError"?"Zeitüberschreitung: Der Server antwortet nicht. Bitte erneut versuchen.":"Backend nicht erreichbar. Bitte später erneut versuchen.")}
  finally{clearTimeout(timer)}
  if(!result)throw Error("Ungültige Serverantwort.");
- if(!response.ok){if(response.status===401&&opts.authenticated&&path!=="/change-password")clearSession();throw Error(result.error||("HTTP "+response.status))}
+ if(!response.ok){if(response.status===401&&opts.authenticated&&(path!=="/change-password"||result.error==="Nicht angemeldet oder Sitzung abgelaufen."))clearSession();throw Error(result.error||("HTTP "+response.status))}
  return result;
 }
 function clearSession(){
@@ -152,6 +165,7 @@ async function publish(){
  if(!catalogRevision){state("Der aktuelle Projektkatalog konnte nicht sicher geladen werden. Bitte zuerst „Projekte neu laden“ verwenden.",true);return}
  if(formDirty&&!saveDraft({preventDefault(){}}))return;
  if(!dirty){state("Keine Änderungen zum Veröffentlichen vorhanden.");return}
+  if(projects.length>100){state("Maximal 100 Projekte erlaubt. Bitte vor dem Veröffentlichen Projekte entfernen.",true);return}
  setPublishing(true);
  try{
   for(const [id,files] of pendingFiles){
@@ -169,7 +183,7 @@ async function publish(){
   showQueuedUploads();
   state("Projektinformationen werden veröffentlicht …");
   const result=await apiRequest("/projects",{method:"PUT",authenticated:true,body:{projects,revision:catalogRevision}});
-  if(/^[a-f0-9]{64}$/.test(result.revision||""))catalogRevision=result.revision;
+  if(validRevision(result.revision))catalogRevision=result.revision;
   dirty=false;publishedSnapshot=snapshot();const source=await loadData(true);showDashboard($("activeAdmin").textContent);
   if(source==="backend")state("Erfolgreich veröffentlicht: "+result.count+" Projekte.");
   else state("Veröffentlicht: "+result.count+" Projekte. Eine Rückprüfung ist gerade nicht möglich.",true);
