@@ -35,6 +35,8 @@ async def run():
     data={"ok":True,"count":len(saved)}
    elif path=="/login":data={"token":"test-only-token","username":"tester"}
    elif path=="/me":data={"username":"tester","role":"admin"}
+   elif path=="/media":data={"url":"https://example.com/test-upload.png"}
+   elif path=="/change-password":data={"ok":True}
    elif path=="/logout":data={"ok":True}
    else:data={"error":"Unexpected mocked route "+path}
    await route.fulfill(status=404 if "error" in data else 200,headers=headers,body=json.dumps(data))
@@ -81,10 +83,42 @@ async def run():
   await page.locator("#projectForm button[type='submit']").click()
   await page.get_by_text("Nur PNG/JPG/WebP",exact=False).wait_for()
   assert len(published)==1
+  # New project, unsaved form and image upload through a mocked server.
+  await page.locator("#newProject").click()
+  await page.locator("#fTitle").fill("NovaLab QA Projekt")
+  await page.locator("#fSummary").fill("Neues Projekt mit Bild")
+  await page.locator("#fLink").fill("./index.html")
+  await page.locator("#fCoverFile").set_input_files({"name":"test.png","mimeType":"image/png","buffer":b"test-png"})
+  await page.locator("#publish").click()
+  await page.get_by_text("Erfolgreich veröffentlicht",exact=False).wait_for()
+  item=next(x for x in published[-1] if x["title"]=="NovaLab QA Projekt")
+  assert item["cover"]=="https://example.com/test-upload.png"
+  assert item["link"]=="./index.html"
+  assert await page.locator("#dashboardProjects").inner_text()=="4"
+  # Deleted projects stay removed after a simulated successful publication.
+  page.once("dialog",lambda dialog:asyncio.create_task(dialog.accept()))
+  await page.locator("#adminRows .admin-row").filter(has_text="NovaLab Experiment").get_by_role("button",name="Löschen").click()
+  await page.locator("#publish").click()
+  await page.get_by_text("Erfolgreich veröffentlicht",exact=False).wait_for()
+  assert all(x["id"]!="my-new-project" for x in published[-1])
+  assert await page.locator("#dashboardProjects").inner_text()=="3"
+  await page.locator("#signOut").click()
+  await page.locator("#adminLogin").wait_for(state="visible")
+  # Password change clears the session and displays the login screen.
+  await page.locator("#loginUsername").fill("tester")
+  await page.locator("#loginPassword").fill("a-password")
+  await page.locator("#loginButton").click()
+  await page.locator("#adminDashboard").wait_for(state="visible")
+  await page.locator(".studio-password-settings > summary").click()
+  await page.locator("#currentAdminPassword").fill("old-password")
+  await page.locator("#newAdminPassword").fill("new-password-long-enough")
+  await page.locator("#repeatAdminPassword").fill("new-password-long-enough")
+  await page.locator("#changePasswordButton").click()
+  await page.locator("#adminLogin").wait_for(state="visible")
   await page.goto(URL+"#%E0%A4%A",wait_until="domcontentloaded")
   assert await page.locator("[data-page='home']").is_visible()
   assert not errors,"Website JavaScript errors: "+str(errors)
   await browser.close()
-  print("OK: search, filters, project details, relative assets, featured homepage, admin publish, file validation and malformed URLs")
+  print("OK: search, filters, project details, relative assets, featured homepage, admin publish, upload, delete, logout, password change, file validation and malformed URLs")
 
 asyncio.run(run())
