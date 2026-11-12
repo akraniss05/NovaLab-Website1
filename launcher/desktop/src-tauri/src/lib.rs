@@ -44,6 +44,9 @@ struct Progress {
     message: Option<String>,
     path: Option<String>,
 }
+fn redirect_is_safe(url:&reqwest::Url,redirects:usize,limit:usize)->bool {
+    redirects<limit && url.scheme()=="https"
+}
 fn emit(app: &AppHandle, progress: Progress) { let _ = app.emit("novalab:download-progress", progress); }
 fn emit_install(app:&AppHandle, id:&str, status:&str, percent:Option<u8>, message:&str){
   let _=app.emit("novalab:install-progress",Progress{id:id.into(),status:status.into(),percent,speed:None,message:Some(message.into()),path:None});
@@ -125,7 +128,7 @@ async fn download_task(app: AppHandle, id: String, url: String, target: PathBuf,
     let result: Result<(), String> = async {
         let client = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::custom(|attempt| {
-                if attempt.previous().len() >= 5 || attempt.url().scheme() != "https" {
+                if !redirect_is_safe(attempt.url(),attempt.previous().len(),5) {
                     attempt.error("Unsichere oder zu viele Weiterleitungen")
                 } else { attempt.follow() }
             }))
@@ -334,7 +337,10 @@ async fn install_game_version(app:AppHandle, game_id:String, version:String, url
     let stage=game_root.join(format!(".stage-{}",Uuid::new_v4()));
     emit_install(&app,&game_id,"active",Some(0),"Starte sicheren Download");
     let result:Result<serde_json::Value,String>=async{
-      let client=reqwest::Client::builder().timeout(std::time::Duration::from_secs(180)).redirect(reqwest::redirect::Policy::limited(3)).build().map_err(|e|e.to_string())?;
+      let client=reqwest::Client::builder().timeout(std::time::Duration::from_secs(180))
+          .redirect(reqwest::redirect::Policy::custom(|attempt|{
+              if !redirect_is_safe(attempt.url(),attempt.previous().len(),3){attempt.error("Unsichere Spiel-Download-Weiterleitung")}else{attempt.follow()}
+          })).build().map_err(|e|e.to_string())?;
       let mut response=client.get(u).send().await.map_err(|e|e.to_string())?;
       if !response.status().is_success(){return Err(format!("Download: HTTP {}",response.status()))}
       if response.content_length().unwrap_or(0)>250_000_000{return Err("Spielpaket ist zu groß".into())}
@@ -504,7 +510,9 @@ async fn install_launcher_update(app:AppHandle) -> Result<serde_json::Value,Stri
     let version=info["version"].as_str().ok_or("Versionsnummer fehlt")?.to_owned();
     let client=reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(300))
-        .redirect(reqwest::redirect::Policy::limited(5))
+        .redirect(reqwest::redirect::Policy::custom(|attempt|{
+            if !redirect_is_safe(attempt.url(),attempt.previous().len(),5){attempt.error("Unsichere Launcher-Update-Weiterleitung")}else{attempt.follow()}
+        }))
         .build().map_err(|e|e.to_string())?;
     let mut response=client.get(url).send().await.map_err(|e|e.to_string())?
         .error_for_status().map_err(|e|e.to_string())?;
@@ -576,6 +584,16 @@ mod updater_tests {
 
 #[cfg(test)]
 mod audit_tests {
+    #[test]
+    fn refuses_http_redirect_and_excessive_redirects(){
+        let https=reqwest::Url::parse("https://github.com/novalab/example").unwrap();
+        let http=reqwest::Url::parse("http://github.com/novalab/example").unwrap();
+        assert!(super::redirect_is_safe(&https,0,5));
+        assert!(super::redirect_is_safe(&https,4,5));
+        assert!(!super::redirect_is_safe(&https,5,5));
+        assert!(!super::redirect_is_safe(&http,0,5));
+    }
+
     use super::{valid_semver,extract_verified_zip};
     use std::{fs,io::Write,path::PathBuf};
     use uuid::Uuid;
