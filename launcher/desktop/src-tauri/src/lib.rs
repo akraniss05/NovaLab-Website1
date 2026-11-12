@@ -233,8 +233,20 @@ fn installed_manifest(app:&AppHandle, id:&str)->Result<PathBuf,String>{
     Ok(installed_dir(app)?.join(id).join("current.json"))
 }
 fn read_installed(app:&AppHandle,id:&str)->Result<InstalledRelease,String>{
-    let text=fs::read_to_string(installed_manifest(app,id)?).map_err(|_|"Dieses Spiel ist noch nicht installiert".to_string())?;
-    serde_json::from_str(&text).map_err(|_|"Ungültige installierte Version".to_string())
+    let current=installed_manifest(app,id)?;
+    let backup=current.with_file_name("current.backup.json");
+    // Recover a previously saved manifest after an interrupted update.
+    if !current.exists() && backup.is_file(){let _=fs::rename(&backup,&current);}
+    let text=fs::read_to_string(current).map_err(|_|"Dieses Spiel ist noch nicht installiert".to_string())?;
+    let manifest:InstalledRelease=serde_json::from_str(&text).map_err(|_|"Ungültige installierte Version".to_string())?;
+    if manifest.game_id!=id || !valid_semver(&manifest.version)
+        || !matches!(manifest.format.as_str(),"html"|"windows")
+        || manifest.entry.is_empty() || manifest.entry.len()>140
+        || Path::new(&manifest.entry).is_absolute()
+        || Path::new(&manifest.entry).components().any(|c|matches!(c,std::path::Component::ParentDir|std::path::Component::Prefix(_))){
+        return Err("Ungültige oder beschädigte Installationsdaten".into());
+    }
+    Ok(manifest)
 }
 #[tauri::command]
 fn installed_games(app:AppHandle)->Result<Vec<InstalledRelease>,String>{
@@ -249,11 +261,24 @@ fn installed_games(app:AppHandle)->Result<Vec<InstalledRelease>,String>{
 #[tauri::command]
 fn launch_installed_game(app:AppHandle, game_id:String)->Result<serde_json::Value,String>{
     let manifest=read_installed(&app,&game_id)?;
-    if manifest.format!="windows" || !manifest.entry.to_ascii_lowercase().ends_with(".exe") { return Err("Nur installierte Windows-Spiele dürfen als EXE gestartet werden".into()) }
+    let extension=if manifest.format=="windows" {".exe"}else{".html"};
+    if !manifest.entry.to_ascii_lowercase().ends_with(extension) && !(manifest.format=="html"&&manifest.entry.to_ascii_lowercase().ends_with(".htm")) {
+        return Err("Die Startdatei entspricht nicht dem Paketformat".into());
+    }
     let base=installed_dir(&app)?.join(&game_id).join(&manifest.version).canonicalize().map_err(|e|e.to_string())?;
     let executable=base.join(&manifest.entry).canonicalize().map_err(|_|"Die Startdatei fehlt".to_string())?;
     if !executable.starts_with(&base)||!executable.is_file(){return Err("Ungültiger Startpfad".into())}
-    Command::new(&executable).current_dir(executable.parent().unwrap_or(&base)).spawn().map_err(|e|e.to_string())?;
+    if manifest.format=="windows" {
+        Command::new(&executable).current_dir(executable.parent().unwrap_or(&base)).spawn().map_err(|e|e.to_string())?;
+    } else {
+        let url=reqwest::Url::from_file_path(&executable).map_err(|_|"Ungültiger HTML-Spielpfad")?;
+        #[cfg(target_os="windows")]
+        Command::new("rundll32.exe").args(["url.dll,FileProtocolHandler",url.as_str()]).spawn().map_err(|e|e.to_string())?;
+        #[cfg(target_os="macos")]
+        Command::new("open").arg(&executable).spawn().map_err(|e|e.to_string())?;
+        #[cfg(target_os="linux")]
+        Command::new("xdg-open").arg(&executable).spawn().map_err(|e|e.to_string())?;
+    }
     Ok(serde_json::json!({"ok":true}))
 }
 #[tauri::command]
