@@ -21,8 +21,10 @@ function $(id){return document.getElementById(id)}
 function el(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!==undefined)e.textContent=txt;return e}
 function icon(kind,cls){const s=document.createElementNS("http://www.w3.org/2000/svg","svg");if(cls)s.setAttribute("class",cls);s.setAttribute("viewBox","0 0 24 24");s.innerHTML=ICONS[kind]||ICONS.tools;return s}
 function text(v,n){return String(v==null?"":v).trim().slice(0,n||10000)}
-function safeLink(input,internal){const val=text(input,800);if(internal&&/^#[a-z][a-z0-9/-]*$/i.test(val))return val;try{const u=new URL(val);if(u.protocol==="https:")return u.href}catch(e){}return ""}
-function safeMedia(input){let val=text(input,1000);if(/^\.\/assets\/uploads\/[A-Za-z0-9._-]+$/.test(val))return val;return safeLink(val,false)}
+const LOCAL_PAGE=/^\.\/(?:[a-z0-9_-]+\/){0,4}[a-z0-9_-]+\.html(?:#[a-z0-9/-]+)?$/i;
+const LOCAL_MEDIA=/^\.\/assets\/(?:[a-z0-9_-]+\/){0,4}[a-z0-9._-]+\.(?:svg|png|jpe?g|webp|gif|mp4|webm)$/i;
+function safeLink(input,internal){const val=text(input,800);if(internal&&(/^#[a-z][a-z0-9/-]*$/i.test(val)||LOCAL_PAGE.test(val)))return val;try{const u=new URL(val);if(u.protocol==="https:"&&!u.username&&!u.password)return u.href}catch(e){}return ""}
+function safeMedia(input){const val=text(input,1000);return LOCAL_MEDIA.test(val)?val:safeLink(val,false)}
 function category(c){return CAT[c]?c:"tools"}
 function normalize(p,index){p=p||{};let tags=Array.isArray(p.tags)?p.tags:String(p.tags||"").split(",");let gallery=Array.isArray(p.gallery)?p.gallery:String(p.gallery||"").split("\n");return {id:text(p.id,60).replace(/[^a-z0-9-]/gi,"-").toLowerCase()||"project-"+index,title:text(p.title,90)||"Ohne Titel",summary:text(p.summary||p.description,250),description:text(p.details||p.longDescription||p.description,6000),category:category(p.category),status:text(p.status,50)||"In Planung",link:safeLink(p.link||p.url,true),tags:tags.map(t=>text(t,35)).filter(Boolean).slice(0,15),cover:safeMedia(p.cover),gallery:gallery.map(safeMedia).filter(Boolean).slice(0,15),video:safeMedia(p.video||p.videoUrl),featured:p.featured!==false,updated:text(p.updated,30)||""}}
 function verifyOfficialProject(p){
@@ -45,20 +47,21 @@ const DEFAULTS=[
 {id:"novalab-game1",title:"Unser erstes NovaLab-Game",summary:"Ein eigenes Spiel ist in Planung. Hier entsteht unser nächstes großes Gaming-Projekt.",description:"Das erste eigene Spiel von NovaLab Studios befindet sich in der Konzeptphase. Wir arbeiten an Ideen, Technik und einem ersten Prototyp. Genre, Umfang und Release-Datum sind noch nicht festgelegt; eine spielbare Version gibt es aktuell nicht.",category:"games",status:"Konzeptphase",link:"#games",tags:["Eigenentwicklung","Geplant"],featured:true},
 {id:"novalab-launcher",title:"NovaLab Launcher",summary:"Unsere Vision eines eigenen Launchers für Spielebibliothek, Downloads und Updates.",description:"Der Launcher soll künftig die Spiele von NovaLab Studios bündeln. Spiele finden, installieren, starten und aktualisieren – alles in einer Desktop-App. Ein Download steht noch nicht zur Verfügung.",category:"games",status:"Geplant",link:"#launcher",tags:["Desktop","Launcher"],featured:false}
 ];
-let projects=DEFAULTS.map((p,i)=>verifyOfficialProject(normalize(p,i))),filter="all",query="",selectedId="",pendingFiles=new Map(),sessionToken=sessionStorage.getItem("novalab_site_session")||"",dirty=false,temporaryUrls=[];
+let projects=DEFAULTS.map((p,i)=>verifyOfficialProject(normalize(p,i))),filter="all",query="",selectedId="",pendingFiles=new Map(),sessionToken=sessionStorage.getItem("novalab_site_session")||"",dirty=false,formDirty=false,temporaryUrls=[];
 function state(msg,error){const e=$("adminStatus");if(!e)return;e.textContent=msg;e.style.color=error?"#ff98ad":"#b8decf"}
 function authState(msg,error){const e=$("loginStatus");if(!e)return;e.textContent=msg;e.style.color=error?"#ff98ad":"#b8decf"}
 function makeLink(label,href,cls){let a=el("a",cls,label),safe=safeLink(href,true);a.href=safe||"#projects";if(safe.startsWith("https://")){a.target="_blank";a.rel="noopener noreferrer"}return a}
 function poster(p,cls){const wrap=el("div","poster "+p.category+(cls?" "+cls:""));const img=el("img");img.loading="lazy";img.decoding="async";img.alt=(p.cover?"Projektbild: ":"NovaLab Konzept-Artwork: ")+p.title;img.src=p.cover||(p.id==="novalab-launcher"?ARTWORK.tools:ARTWORK[p.category]||ARTWORK.tools);img.onerror=()=>{img.remove();wrap.prepend(icon(p.category,"poster-icon"))};wrap.append(img);wrap.append(el("span","poster-status",p.status));return wrap}
 function projectCard(p){const card=el("article","project-card");const link=makeLink("","#project/"+p.id,"poster-link");link.append(poster(p));card.append(link);const body=el("div","card-body");body.append(el("span","card-meta",CAT[p.category]+" / NOVALAB"),el("h3","",p.title),el("p","",p.summary));const bottom=el("div","card-bottom");bottom.append(el("span","card-tags",(p.tags||[]).slice(0,2).join(" · ")));const go=makeLink("","#project/"+p.id,"icon-circle");go.setAttribute("aria-label","Details zu "+p.title);go.append(icon("arrow"));bottom.append(go);body.append(bottom);card.append(body);return card}
+function renderFeatured(){const section=$("featuredSection"),grid=$("featuredGrid");if(!section||!grid)return;const featured=projects.filter(p=>p.featured);grid.replaceChildren();featured.forEach(p=>grid.append(projectCard(p)));section.hidden=featured.length===0}
 function renderProjects(){const grid=$("projectGrid");grid.replaceChildren();
-const found=projects.filter(p=>(filter==="all"||p.category===filter)&&(p.title+" "+p.summary+" "+p.description+" "+p.tags.join(" ")).toLowerCase().includes(query));found.forEach(p=>grid.append(projectCard(p)));$("emptyResults").hidden=found.length>0;renderAdminList()}
+const found=projects.filter(p=>(filter==="all"||p.category===filter)&&(p.title+" "+p.summary+" "+p.description+" "+p.tags.join(" ")).toLowerCase().includes(query));found.forEach(p=>grid.append(projectCard(p)));$("emptyResults").hidden=found.length>0;renderFeatured();renderAdminList()}
 function setVisualImage(container,src,p){container.replaceChildren();let img=el("img");img.src=src||ARTWORK[p.category]||ARTWORK.tools;img.alt=(src?"Bild von ":"Dekoratives NovaLab Artwork zu ")+p.title;img.onerror=()=>{container.replaceChildren(icon(p.category))};container.append(img)}
-function renderDetail(id){const p=projects.find(x=>x.id===id),content=$("projectDetail");content.replaceChildren();if(!p){content.append(el("p","empty","Dieses Projekt wurde nicht gefunden."));return}
+function renderDetail(id){const p=projects.find(x=>x.id===id),content=$("projectDetail");content.replaceChildren();if(!p){$("detailTitle").textContent="Projekt nicht gefunden";content.append(el("p","empty","Dieses Projekt wurde nicht gefunden."),makeLink("Zur Projektübersicht","#projects","btn btn-ghost"));return}
 const nav=el("div","page-actions");nav.append(makeLink("← Zurück zur Übersicht","#projects","btn btn-ghost"));content.append(nav);
 const head=el("div","section-head");const inner=el("div");inner.append(el("span","eyebrow",CAT[p.category]+" · "+p.status),el("h1","",p.title),el("p","muted",p.summary));head.append(inner);content.append(head);
 const cover=el("div","detail-cover"),media=[p.cover,...p.gallery].filter(Boolean);setVisualImage(cover,media[0]||"",p);content.append(cover);
-if(media.length>1){const thumbs=el("div","thumbs");media.forEach((url,index)=>{const b=el("button",index===0?"selected":"");b.type="button";const img=el("img");img.src=url;img.alt="Projektbild "+(index+1);b.append(img);b.onclick=()=>{setVisualImage(cover,url,p);for(const child of thumbs.children)child.classList.remove("selected");b.classList.add("selected")};thumbs.append(b)});content.append(thumbs)}
+if(media.length>1){const thumbs=el("div","thumbs");media.forEach((url,index)=>{const b=el("button",index===0?"selected":"");b.type="button";b.setAttribute("aria-label","Projektbild "+(index+1)+" anzeigen");b.setAttribute("aria-pressed",String(index===0));const img=el("img");img.src=url;img.alt="Projektbild "+(index+1);b.append(img);b.onclick=()=>{setVisualImage(cover,url,p);for(const child of thumbs.children){child.classList.remove("selected");child.setAttribute("aria-pressed","false")}b.classList.add("selected");b.setAttribute("aria-pressed","true")};thumbs.append(b)});content.append(thumbs)}
 const layout=el("div","detail-main"),body=el("div","detail-panel"),side=el("aside","detail-panel");body.append(el("h3","","Über das Projekt"),el("p","detail-text",p.description||p.summary));if(p.video){const video=createVideo(p.video);if(video)body.append(video)}
 side.append(el("h3","","Projekt-Infos"));for(const [label,val] of [["Status",p.status],["Bereich",CAT[p.category]],["Letztes Update",p.updated||"Nicht angegeben"]]){const row=el("div","meta-line");row.append(el("span","",label),el("b","",val));side.append(row)}const tags=el("div","tags");p.tags.forEach(t=>tags.append(el("span","tag",t)));side.append(tags);
 if(p.link){const a=makeLink("Projekt besuchen ↗",p.link,"btn btn-primary");a.style.width="100%";side.append(a)}else side.append(el("p","muted tiny","Weitere Infos folgen."));
@@ -72,15 +75,15 @@ if(embed){const iframe=el("iframe");iframe.src=embed;iframe.title="Projektvideo"
 else if(/\.(mp4|webm)(?:$|\?)/i.test(s)){const video=el("video");video.src=s;video.controls=true;video.preload="metadata";video.playsInline=true;panel.append(video)}
 else{panel.append(makeLink("Projektvideo öffnen ↗",s,"btn btn-ghost"))}
 panel.append(el("p","","Projektvideo"));return panel}
-function route(){let hash=decodeURIComponent(location.hash.slice(1)||"home").replace(/[^a-z0-9/-]/gi,"");let page=hash.startsWith("project/")?"project":ROUTES.includes(hash)?hash:"home";document.querySelectorAll(".page").forEach(e=>{e.hidden=e.dataset.page!==page});document.querySelectorAll(".nav-link").forEach(e=>{let is=(e.dataset.go===page)||(page==="code"||page==="music"?e.dataset.go==="learning":page==="project"&&e.dataset.go==="projects");e.classList.toggle("active",is);if(is)e.setAttribute("aria-current","page");else e.removeAttribute("aria-current")});
+function route(){let hash;try{hash=decodeURIComponent(location.hash.slice(1)||"home")}catch{hash="home"}hash=hash.replace(/[^a-z0-9/-]/gi,"").toLowerCase();let page=hash.startsWith("project/")?"project":ROUTES.includes(hash)?hash:"home";document.querySelectorAll(".page").forEach(e=>{e.hidden=e.dataset.page!==page});document.querySelectorAll(".nav-link").forEach(e=>{let is=(e.dataset.go===page)||(page==="code"||page==="music"?e.dataset.go==="learning":page==="project"&&e.dataset.go==="projects");e.classList.toggle("active",is);if(is)e.setAttribute("aria-current","page");else e.removeAttribute("aria-current")});
 if(page==="project")renderDetail(hash.slice(8));$("mainNav").classList.remove("open");$("mobileMenu").setAttribute("aria-expanded","false");$("mobileMenu").setAttribute("aria-label","Menü öffnen");window.scrollTo(0,0);document.title=(page==="home"?"NovaLab Studios":page==="project"?($("detailTitle").textContent+" | NovaLab Studios"):(page.charAt(0).toUpperCase()+page.slice(1))+" | NovaLab Studios")}
 async function loadData(){let loaded=false;try{const result=await apiRequest("/projects");if(!Array.isArray(result.projects))throw Error("Invalid projects");projects=result.projects.map((p,i)=>verifyOfficialProject(normalize(p,i)));loaded=true}catch(e){console.info("NovaLab backend unavailable, using fallback",e)}
 if(!loaded){try{const r=await fetch("./data/projects.json?v=10",{cache:"no-store"});if(!r.ok)throw Error("HTTP "+r.status);const data=await r.json();if(!Array.isArray(data))throw Error("Invalid JSON");projects=data.map((p,i)=>verifyOfficialProject(normalize(p,i)))}catch(e){console.info("Using default projects",e)}}
-renderProjects();if(location.hash.startsWith("#project/"))route()}
-function renderAdminList(){const root=$("adminRows");root.replaceChildren();projects.forEach(p=>{const row=el("div","admin-row");const label=el("div");label.append(el("b","",p.title),el("small","",CAT[p.category]+" · "+p.status));const acts=el("div","admin-row-actions");let edit=el("button","","Bearbeiten");edit.type="button";edit.onclick=()=>editProject(p.id);let del=el("button","","Löschen");del.type="button";del.onclick=()=>{if(confirm("Projekt „"+p.title+"“ wirklich aus der Liste entfernen?")){projects=projects.filter(x=>x.id!==p.id);pendingFiles.delete(p.id);dirty=true;renderProjects();state("Löschung vorgemerkt – noch nicht veröffentlicht.")}};acts.append(edit,del);row.append(label,acts);root.append(row)})}
-function editProject(id){const p=projects.find(x=>x.id===id);if(!p)return;selectedId=id;$("fId").value=id;$("fTitle").value=p.title;$("fSummary").value=p.summary;$("fDescription").value=p.description;$("fCategory").value=p.category;$("fStatus").value=p.status;$("fLink").value=p.link;$("fTags").value=p.tags.join(", ");$("fCoverUrl").value=p.cover;$("fGallery").value=p.gallery.join("\n");$("fVideoUrl").value=p.video;$("fFeatured").checked=p.featured;
+renderProjects();if(location.hash.startsWith("#project/"))route();return loaded?"backend":"fallback"}
+function renderAdminList(){const root=$("adminRows");root.replaceChildren();$("dashboardProjects").textContent=String(projects.length);projects.forEach(p=>{const row=el("div","admin-row");const label=el("div");label.append(el("b","",p.title),el("small","",CAT[p.category]+" · "+p.status));const acts=el("div","admin-row-actions");let edit=el("button","","Bearbeiten");edit.type="button";edit.onclick=()=>editProject(p.id);let del=el("button","","Löschen");del.type="button";del.onclick=()=>{if(confirm("Projekt „"+p.title+"“ wirklich aus der Liste entfernen?")){projects=projects.filter(x=>x.id!==p.id);pendingFiles.delete(p.id);dirty=true;renderProjects();state("Löschung vorgemerkt – noch nicht veröffentlicht.")}};acts.append(edit,del);row.append(label,acts);root.append(row)})}
+function editProject(id){const p=projects.find(x=>x.id===id);if(!p)return;selectedId=id;formDirty=false;$("fId").value=id;$("fTitle").value=p.title;$("fSummary").value=p.summary;$("fDescription").value=p.description;$("fCategory").value=p.category;$("fStatus").value=p.status;$("fLink").value=p.link;$("fTags").value=p.tags.join(", ");$("fCoverUrl").value=p.cover;$("fGallery").value=p.gallery.join("\n");$("fVideoUrl").value=p.video;$("fFeatured").checked=p.featured;
 for(const id of ["fCoverFile","fGalleryFiles","fVideoFile"])$(id).value="";clearMediaPreviews();$("formTitle").textContent="Projekt bearbeiten";state("Du bearbeitest „"+p.title+"“. Änderungen werden erst nach dem Veröffentlichen öffentlich.");$("editorCard").scrollIntoView({behavior:"smooth",block:"start"})}
-function newProject(){selectedId="";$("projectForm").reset();clearMediaPreviews();$("fId").value="";$("fFeatured").checked=true;$("formTitle").textContent="Projekt hinzufügen";state("Neues Projekt erstellen und anschließend veröffentlichen.");$("editorCard").scrollIntoView({behavior:"smooth",block:"start"})}
+function newProject(){selectedId="";formDirty=false;$("projectForm").reset();clearMediaPreviews();$("fId").value="";$("fFeatured").checked=true;$("formTitle").textContent="Projekt hinzufügen";state("Neues Projekt erstellen und anschließend veröffentlichen.");$("editorCard").scrollIntoView({behavior:"smooth",block:"start"})}
 function formError(msg){state(msg,true);return false}
 function saveDraft(e){e.preventDefault();const title=text($("fTitle").value,90),summary=text($("fSummary").value,250);if(!title||!summary)return formError("Titel und Kurzbeschreibung fehlen.");
 let link=text($("fLink").value);if(link&&!safeLink(link,true))return formError("Projekt-Link: bitte eine HTTPS-URL oder #code, #music etc. eintragen.");
@@ -90,9 +93,9 @@ const galleryText=$("fGallery").value.split("\n").map(x=>x.trim()).filter(Boolea
 const id=selectedId||"project-"+Date.now().toString(36),old=projects.find(p=>p.id===id);
 const item=normalize({id,title,summary,details:$("fDescription").value||summary,category:$("fCategory").value,status:$("fStatus").value,link,tags:$("fTags").value,cover:coverInput,gallery:galleryText,video:videoInput,featured:$("fFeatured").checked,updated:new Date().toISOString().slice(0,10)});
 const files={cover:$("fCoverFile").files[0]||null,gallery:[...$("fGalleryFiles").files],video:$("fVideoFile").files[0]||null};
-if(files.cover||files.gallery.length||files.video){for(const file of [files.cover,...files.gallery,files.video].filter(Boolean)){const isImage=file.type.startsWith("image/"),isVideo=file.type.startsWith("video/");if(!isImage&&!isVideo)return formError("Nur Bilddateien oder MP4/WebM-Videos hochladen.");if(file.size>(isImage?4:12)*1024*1024)return formError("Datei zu groß: Bilder max. 4 MB, Videos max. 12 MB. Größere Videos bitte auf YouTube bereitstellen.");}
+if(files.cover||files.gallery.length||files.video){const images=["image/png","image/jpeg","image/webp"],videos=["video/mp4","video/webm"];if((files.cover&&!images.includes(files.cover.type))||files.gallery.some(file=>!images.includes(file.type))||(files.video&&!videos.includes(files.video.type)))return formError("Nur PNG/JPG/WebP für Bilder und MP4/WebM für Videos erlaubt.");for(const file of [files.cover,...files.gallery,files.video].filter(Boolean)){if(file.size>(images.includes(file.type)?4:12)*1024*1024)return formError("Datei zu groß: Bilder max. 4 MB, Videos max. 12 MB. Größere Videos bitte auf YouTube bereitstellen.");}
 pendingFiles.set(id,files)}
-if(old)projects=projects.map(x=>x.id===id?item:x);else projects.push(item);dirty=true;renderProjects();selectedId=id;$("fId").value=id;$("formTitle").textContent="Projekt bearbeiten";for(const field of ["fCoverFile","fGalleryFiles","fVideoFile"])$(field).value="";clearMediaPreviews();state("Projekt vorgemerkt. Zum Übernehmen auf „Auf Website veröffentlichen“ klicken.");return false}
+if(old)projects=projects.map(x=>x.id===id?item:x);else projects.push(item);dirty=true;renderProjects();selectedId=id;$("fId").value=id;$("formTitle").textContent="Projekt bearbeiten";for(const field of ["fCoverFile","fGalleryFiles","fVideoFile"])$(field).value="";clearMediaPreviews();formDirty=false;state("Projekt vorgemerkt. Zum Übernehmen auf „Auf Website veröffentlichen“ klicken.");return true}
 
 async function apiRequest(path,opts={}){
  const method=opts.method||"GET",body=opts.body;
@@ -123,8 +126,9 @@ async function handleLogin(event){
  catch(e){authState(e.message,true)}finally{button.disabled=false}
 }
 async function logout(){
- try{if(sessionToken)await apiRequest("/logout",{method:"POST",body:{},authenticated:true})}catch{}
+ const request=sessionToken?apiRequest("/logout",{method:"POST",body:{},authenticated:true}):null;
  clearSession();authState("Du wurdest abgemeldet.");
+ if(request)try{await request}catch{}
 }
 function readBase64(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]);reader.onerror=()=>reject(Error("Datei konnte nicht gelesen werden."));reader.readAsDataURL(file)})}
 async function upload(file){
@@ -133,6 +137,7 @@ async function upload(file){
  return result.url;
 }
 async function publish(){
+ if(formDirty&&!saveDraft({preventDefault(){}}))return;
  if(!sessionToken){state("Bitte zuerst als Administrator anmelden.",true);return}
  const button=$("publish");button.disabled=true;
  try{
@@ -150,8 +155,9 @@ async function publish(){
  }catch(e){state("Veröffentlichung fehlgeschlagen: "+e.message,true)}finally{button.disabled=false}
 }
 async function reload(){
- if(dirty&&!confirm("Nicht gespeicherte Änderungen verwerfen?"))return;
- dirty=false;pendingFiles.clear();await loadData();state("Öffentliche Projekte neu geladen.");
+ if((dirty||formDirty)&&!confirm("Nicht gespeicherte Änderungen verwerfen?"))return;
+ const source=await loadData();if(source!=="backend"){state("Backend nicht erreichbar – lokale Ersatzdaten angezeigt. Keine Live-Daten überschreiben.",true);return}
+ dirty=false;formDirty=false;pendingFiles.clear();selectedId="";$("projectForm").reset();clearMediaPreviews();$("formTitle").textContent="Projekt hinzufügen";state("Öffentliche Projekte aus dem Backend neu geladen.");
 }
 function clearMediaPreviews(){temporaryUrls.forEach(url=>URL.revokeObjectURL(url));temporaryUrls=[];$("coverPreview").replaceChildren();$("galleryPreview").replaceChildren();$("videoPreview").textContent=""}
 function showMediaPreviews(){clearMediaPreviews();let cover=$("fCoverFile").files[0];if(cover){const img=el("img");const src=URL.createObjectURL(cover);temporaryUrls.push(src);img.src=src;img.alt="Vorschau des Titelbildes";$("coverPreview").append(img)}
@@ -165,7 +171,7 @@ document.addEventListener("click",event=>{const menu=$("mainNav"),button=$("mobi
 window.addEventListener("resize",()=>{if(window.innerWidth>1090)closeMobileNav()});
 $("projectSearch").oninput=e=>{query=e.target.value.trim().toLowerCase();renderProjects()};
 $("filters").onclick=e=>{const b=e.target.closest("[data-category]");if(!b)return;filter=b.dataset.category;document.querySelectorAll("[data-category]").forEach(x=>x.classList.toggle("active",x===b));renderProjects()};
-$("projectForm").addEventListener("submit",saveDraft);$("newProject").onclick=newProject;$("publish").onclick=publish;$("reload").onclick=reload;$("loginForm").addEventListener("submit",handleLogin);$("signOut").onclick=logout;$("passwordForm").addEventListener("submit",handlePasswordChange);
+$("projectForm").addEventListener("input",()=>{formDirty=true});$("projectForm").addEventListener("change",()=>{formDirty=true});$("projectForm").addEventListener("submit",saveDraft);$("newProject").onclick=newProject;$("publish").onclick=publish;$("reload").onclick=reload;$("loginForm").addEventListener("submit",handleLogin);$("signOut").onclick=logout;$("passwordForm").addEventListener("submit",handlePasswordChange);
 $("discoverNovaLab").addEventListener("click",()=>document.getElementById("introNovaLab").scrollIntoView({behavior:"smooth",block:"start"}));
 
 async function handlePasswordChange(event){
