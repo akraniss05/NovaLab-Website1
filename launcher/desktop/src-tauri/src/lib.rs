@@ -139,7 +139,7 @@ async fn download_task(app: AppHandle, id: String, url: String, target: PathBuf,
                     attempt.error("Unsichere oder zu viele Weiterleitungen")
                 } else { attempt.follow() }
             }))
-            .timeout(std::time::Duration::from_secs(180))
+            .connect_timeout(std::time::Duration::from_secs(20))
             .build().map_err(|e|e.to_string())?;
         let mut response = client.get(&url).send().await.map_err(|e|e.to_string())?;
         if !response.status().is_success() { return Err(format!("HTTP {} – Download nicht möglich (Server lehnt die Anfrage ab).",response.status())); }
@@ -150,7 +150,10 @@ async fn download_task(app: AppHandle, id: String, url: String, target: PathBuf,
         let mut downloaded = 0_u64;
         let start = Instant::now();
         let mut last = Instant::now();
-        while let Some(chunk) = response.chunk().await.map_err(|e|e.to_string())? {
+        while let Some(chunk) = tokio::time::timeout(
+            std::time::Duration::from_secs(60),response.chunk()
+        ).await.map_err(|_|"Download seit 60 Sekunden ohne Daten. Bitte erneut versuchen.".to_string())?
+        .map_err(|e|e.to_string())? {
             if cancelled.load(Ordering::Relaxed) { return Err("__cancelled__".into()); }
             file.write_all(&chunk).await.map_err(|e|e.to_string())?;
             downloaded=downloaded.saturating_add(chunk.len() as u64);
@@ -364,7 +367,7 @@ async fn install_game_version(app:AppHandle, game_id:String, version:String, url
     let stage=game_root.join(format!(".stage-{}",Uuid::new_v4()));
     emit_install(&app,&game_id,"active",Some(0),"Starte sicheren Download");
     let result:Result<serde_json::Value,String>=async{
-      let client=reqwest::Client::builder().timeout(std::time::Duration::from_secs(180))
+      let client=reqwest::Client::builder().connect_timeout(std::time::Duration::from_secs(20))
           .redirect(reqwest::redirect::Policy::custom(|attempt|{
               if !redirect_is_safe(attempt.url(),attempt.previous().len(),3){attempt.error("Unsichere Spiel-Download-Weiterleitung")}else{attempt.follow()}
           })).build().map_err(|e|e.to_string())?;
@@ -374,7 +377,10 @@ async fn install_game_version(app:AppHandle, game_id:String, version:String, url
       let mut hash=Sha256::new();let mut bytes=0_usize;let mut next_progress=0_u8;
       let expected=response.content_length().filter(|n|*n>0);
       let mut file=tokio::fs::File::create(&scratch).await.map_err(|e|e.to_string())?;
-      while let Some(chunk)=response.chunk().await.map_err(|e|e.to_string())?{
+      while let Some(chunk)=tokio::time::timeout(
+          std::time::Duration::from_secs(60),response.chunk()
+      ).await.map_err(|_|"Spiel-Download ist seit 60 Sekunden ohne Daten.".to_string())?
+      .map_err(|e|e.to_string())?{
         bytes+=chunk.len();if bytes>250_000_000{return Err("Spielpaket ist zu groß".into())}
         hash.update(&chunk);file.write_all(&chunk).await.map_err(|e|e.to_string())?;
         if let Some(total)=expected {let pct=((bytes as u64).saturating_mul(75)/total).min(75) as u8;
