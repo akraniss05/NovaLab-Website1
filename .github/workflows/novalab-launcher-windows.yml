@@ -73,10 +73,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view novalab-launcher-v0.10-alpha --repo akraniss05/NovaLab-Website1 --json tagName *> $null
-          if ($LASTEXITCODE -eq 0) { throw 'Version 0.10 already published: bump version before publishing changes.' }
-          Write-Host '0.10 tag is unused: safe to publish immutable release'
-          exit 0
+          $url = 'https://api.github.com/repos/akraniss05/NovaLab-Website1/releases/tags/novalab-launcher-v0.10-alpha'
+          $headers = @{'User-Agent'='NovaLab-Release-Guard';'Authorization'="Bearer $env:GH_TOKEN"}
+          $response = Invoke-WebRequest -Uri $url -Headers $headers -SkipHttpErrorCheck
+          if ($response.StatusCode -eq 200) { throw 'Version 0.10 already published: bump version before publishing changes.' }
+          if ($response.StatusCode -ne 404) { throw "Release-Prüfung unerwartet fehlgeschlagen: HTTP $($response.StatusCode)" }
+          Write-Host 'PASS: v0.10 tag is unused and may be published once'
       - name: Smoke-test Windows upgrade from installed 0.9 to 0.10
         shell: pwsh
         env:
@@ -134,7 +136,7 @@ jobs:
           $url = 'https://api.github.com/repos/akraniss05/NovaLab-Website1/releases/tags/novalab-launcher-v0.10-alpha'
           for ($try = 0; $try -lt 8; $try++) {
             $r = Invoke-RestMethod -Uri $url -Headers @{'User-Agent'='NovaLab-CI';'Authorization'="Bearer $env:GH_TOKEN"}
-            $asset = $r.assets | Where-Object {$_.name -like '*_x64-setup.exe'} | Select-Object -First 1
+            $asset = $r.assets | Where-Object {$_.name -eq 'NovaLab.Studios.Launcher_0.10.0_x64-setup.exe'} | Select-Object -First 1
             if ($asset -and $asset.digest -match '^sha256:[0-9a-f]{64}$') { break }
             Start-Sleep -Seconds 3
           }
