@@ -1,0 +1,21 @@
+name: NovaLab Large Game Release Integrity QA
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'launcher/tests/qa_large_releases.py'
+      - '.github/workflows/novalab-large-release-audit.yml'
+permissions:
+  contents: read
+jobs:
+  verify-large-game-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Stream and verify complete released game ZIP
+        run: python -u launcher/tests/qa_large_releases.py
