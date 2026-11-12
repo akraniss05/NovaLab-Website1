@@ -135,7 +135,7 @@ async fn download_task(app: AppHandle, id: String, url: String, target: PathBuf,
             .timeout(std::time::Duration::from_secs(180))
             .build().map_err(|e|e.to_string())?;
         let mut response = client.get(&url).send().await.map_err(|e|e.to_string())?;
-        if !response.status().is_success() { return Err(format!("HTTP {} – Download nicht möglich (Weiterleitungen sind aus Sicherheitsgründen deaktiviert).",response.status())); }
+        if !response.status().is_success() { return Err(format!("HTTP {} – Download nicht möglich (Server lehnt die Anfrage ab).",response.status())); }
         const MAX_GENERIC_DOWNLOAD:u64=2_000_000_000;
         let total = response.content_length();
         if total.is_some_and(|n|n>MAX_GENERIC_DOWNLOAD){return Err("Download überschreitet das 2-GB-Limit.".into())}
@@ -292,6 +292,8 @@ fn launch_installed_game(app:AppHandle, game_id:String)->Result<serde_json::Valu
 }
 #[tauri::command]
 fn uninstall_installed_game(app:AppHandle, game_id:String)->Result<serde_json::Value,String>{
+    // Prevent uninstall from racing an in-progress update for the same game.
+    let _install_guard=reserve_install(&app,&game_id)?;
     let manifest=read_installed(&app,&game_id)?;
     if manifest.game_id!=game_id {return Err("Ungültiges Installationsmanifest".into())}
     let root=installed_dir(&app)?.canonicalize().map_err(|e|e.to_string())?;
