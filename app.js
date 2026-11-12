@@ -38,11 +38,18 @@ const DEFAULTS=[
 {id:"novalab-game1",title:"NovaLab Game 01",summary:"Ein eigenes Spiel ist in Planung. Hier entsteht unser nächstes großes Gaming-Projekt.",description:"Das erste eigene Spiel von NovaLab Studios befindet sich in der Konzeptphase. Wir arbeiten an Ideen, Technik und einem ersten Prototyp. Genre, Umfang und Release-Datum sind noch nicht festgelegt; eine spielbare Version gibt es aktuell nicht.",category:"games",status:"Konzeptphase",link:"#games",tags:["Eigenentwicklung","Geplant"],featured:true},
 {id:"novalab-launcher",title:"NovaLab Launcher",summary:"Windows-Launcher zum Entdecken, Installieren und Aktualisieren von NovaLab-Spielen und -Apps.",description:"Der NovaLab Windows-Launcher ist als Early-Access-Version erhältlich. Hier findest du Downloads und Updates für Spiele und Apps.",category:"games",status:"Windows Early Access",link:"#launcher",tags:["Desktop","Launcher"],featured:false}
 ];
-let projects=DEFAULTS.map((p,i)=>verifyOfficialProject(normalize(p,i))),filter="all",query="",selectedId="",pendingFiles=new Map(),sessionToken=sessionStorage.getItem("novalab_site_session")||"",dirty=false,formDirty=false,catalogRevision=null,temporaryUrls=[];
+let projects=DEFAULTS.map((p,i)=>verifyOfficialProject(normalize(p,i))),filter="all",query="",selectedId="",pendingFiles=new Map(),sessionToken=sessionStorage.getItem("novalab_site_session")||"",dirty=false,formDirty=false,catalogRevision=null,publishing=false,temporaryUrls=[];
 let publishedSnapshot=projects.map(p=>({...p,tags:[...p.tags],gallery:[...p.gallery]}));
 function snapshot(){return projects.map(p=>({...p,tags:[...p.tags],gallery:[...p.gallery]}))}
 function state(msg,error){const e=$("adminStatus");if(!e)return;e.textContent=msg;e.style.color=error?"#ff98ad":"#b8decf"}
 function authState(msg,error){const e=$("loginStatus");if(!e)return;e.textContent=msg;e.style.color=error?"#ff98ad":"#b8decf"}
+function setPublishing(active){
+ publishing=active;
+ for(const field of $("projectForm").querySelectorAll("input,textarea,select,button"))field.disabled=active;
+ for(const field of $("passwordForm").querySelectorAll("input,button"))field.disabled=active;
+ for(const id of ["newProject","reload","signOut"])$(id).disabled=active;
+ for(const button of $("adminRows").querySelectorAll("button"))button.disabled=active;
+}
 function showQueuedUploads(){const info=$("queuedUploadsInfo"),button=$("clearQueuedUploads");if(!info||!button)return;const entry=pendingFiles.get(selectedId);const count=entry?(Number(Boolean(entry.cover))+entry.gallery.length+Number(Boolean(entry.video))):0;info.textContent=count?count+" Datei(en) für dieses Projekt vorgemerkt. Vor dem Veröffentlichen werden sie hochgeladen.":"Keine Dateien zum Hochladen vorgemerkt.";button.hidden=count===0}
 function makeLink(label,href,cls){let a=el("a",cls,label),safe=safeLink(href,true);a.href=safe||"#projects";if(safe.startsWith("https://")){a.target="_blank";a.rel="noopener noreferrer"}return a}
 function poster(p,cls){const wrap=el("div","poster "+p.category+(cls?" "+cls:""));const img=el("img");img.loading="lazy";img.decoding="async";img.alt=(p.cover?"Projektbild: ":"NovaLab Konzept-Artwork: ")+p.title;img.src=p.cover||(p.id==="novalab-launcher"?ARTWORK.tools:ARTWORK[p.category]||ARTWORK.tools);img.onerror=()=>{img.remove();wrap.prepend(icon(p.category,"poster-icon"))};wrap.append(img);wrap.append(el("span","poster-status",p.status));return wrap}
@@ -143,7 +150,7 @@ async function publish(){
  if(!catalogRevision){state("Der aktuelle Projektkatalog konnte nicht sicher geladen werden. Bitte zuerst „Projekte neu laden“ verwenden.",true);return}
  if(formDirty&&!saveDraft({preventDefault(){}}))return;
  if(!dirty){state("Keine Änderungen zum Veröffentlichen vorhanden.");return}
- const button=$("publish");button.disabled=true;
+ setPublishing(true);
  try{
   for(const [id,files] of pendingFiles){
    const item=projects.find(x=>x.id===id);if(!item)continue;
@@ -164,7 +171,7 @@ async function publish(){
   dirty=false;publishedSnapshot=snapshot();const source=await loadData(true);showDashboard($("activeAdmin").textContent);
   if(source==="backend")state("Erfolgreich veröffentlicht: "+result.count+" Projekte.");
   else state("Veröffentlicht: "+result.count+" Projekte. Eine Rückprüfung ist gerade nicht möglich.",true);
- }catch(e){state("Veröffentlichung fehlgeschlagen: "+e.message,true)}finally{button.disabled=false}
+ }catch(e){state("Veröffentlichung fehlgeschlagen: "+e.message,true)}finally{setPublishing(false)}
 }
 async function reload(){
  if((dirty||formDirty)&&!confirm("Nicht gespeicherte Änderungen verwerfen?"))return;
