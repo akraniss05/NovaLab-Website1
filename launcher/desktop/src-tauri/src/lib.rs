@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
     process::Command,
@@ -14,6 +14,25 @@ use uuid::Uuid;
 
 #[derive(Default)]
 struct DownloadRegistry(Mutex<HashMap<String, Arc<AtomicBool>>>);
+#[derive(Default)]
+struct InstallRegistry(Mutex<HashSet<String>>);
+struct InstallGuard { app: AppHandle, id: String }
+impl Drop for InstallGuard {
+    fn drop(&mut self) {
+        if let Ok(mut active) = self.app.state::<InstallRegistry>().0.lock() {
+            active.remove(&self.id);
+        }
+    }
+}
+fn reserve_install(app:&AppHandle,id:&str)->Result<InstallGuard,String>{
+    let state=app.state::<InstallRegistry>();
+    let mut active=state.0.lock().map_err(|_|"Installationsverwaltung nicht verfügbar")?;
+    if !active.insert(id.to_owned()) {
+        return Err("Dieses Spiel wird bereits installiert. Bitte den laufenden Vorgang beenden.".into());
+    }
+    Ok(InstallGuard{app:app.clone(),id:id.into()})
+}
+
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all="camelCase")]
@@ -105,12 +124,18 @@ fn open_external(url: String) -> Result<serde_json::Value, String> {
 async fn download_task(app: AppHandle, id: String, url: String, target: PathBuf, cancelled: Arc<AtomicBool>) {
     let result: Result<(), String> = async {
         let client = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .timeout(std::time::Duration::from_secs(60))
+            .redirect(reqwest::redirect::Policy::custom(|attempt| {
+                if attempt.previous().len() >= 5 || attempt.url().scheme() != "https" {
+                    attempt.error("Unsichere oder zu viele Weiterleitungen")
+                } else { attempt.follow() }
+            }))
+            .timeout(std::time::Duration::from_secs(180))
             .build().map_err(|e|e.to_string())?;
         let mut response = client.get(&url).send().await.map_err(|e|e.to_string())?;
         if !response.status().is_success() { return Err(format!("HTTP {} – Download nicht möglich (Weiterleitungen sind aus Sicherheitsgründen deaktiviert).",response.status())); }
+        const MAX_GENERIC_DOWNLOAD:u64=2_000_000_000;
         let total = response.content_length();
+        if total.is_some_and(|n|n>MAX_GENERIC_DOWNLOAD){return Err("Download überschreitet das 2-GB-Limit.".into())}
         let mut file = tokio::fs::OpenOptions::new().write(true).create_new(true).open(&target).await.map_err(|e|e.to_string())?;
         let mut downloaded = 0_u64;
         let start = Instant::now();
@@ -118,7 +143,8 @@ async fn download_task(app: AppHandle, id: String, url: String, target: PathBuf,
         while let Some(chunk) = response.chunk().await.map_err(|e|e.to_string())? {
             if cancelled.load(Ordering::Relaxed) { return Err("__cancelled__".into()); }
             file.write_all(&chunk).await.map_err(|e|e.to_string())?;
-            downloaded += chunk.len() as u64;
+            downloaded=downloaded.saturating_add(chunk.len() as u64);
+            if downloaded>MAX_GENERIC_DOWNLOAD{return Err("Download überschreitet das 2-GB-Limit.".into())}
             if last.elapsed().as_millis() > 350 {
                 let percent=total.filter(|n| *n>0).map(|n| ((downloaded.saturating_mul(100)/n).min(100)) as u8);
                 let speed=(downloaded as f64/1_048_576.0)/start.elapsed().as_secs_f64().max(0.1);
@@ -127,6 +153,7 @@ async fn download_task(app: AppHandle, id: String, url: String, target: PathBuf,
             }
         }
         file.flush().await.map_err(|e|e.to_string())?;
+        if total.is_some_and(|n|n!=downloaded){return Err("Der Download ist unvollständig.".into())}
         if cancelled.load(Ordering::Relaxed) { return Err("__cancelled__".into()); }
         emit(&app,Progress{id:id.clone(),status:"done".into(),percent:Some(100),speed:None,message:Some("Download gespeichert, nicht automatisch installiert".into()),path:Some(target.to_string_lossy().into_owned())});
         Ok(())
@@ -170,6 +197,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(DownloadRegistry::default())
+        .manage(InstallRegistry::default())
         .invoke_handler(tauri::generate_handler![pick_game,launch_game,open_external,download_game,cancel_download,installed_games,install_game_version,launch_installed_game,uninstall_installed_game,check_launcher_update,install_launcher_update])
         .run(tauri::generate_context!())
         .expect("NovaLab Studios Launcher konnte nicht gestartet werden");
@@ -185,6 +213,11 @@ struct InstalledRelease {
     entry: String,
     sha256: String,
     format: String,
+}
+fn valid_semver(s:&str)->bool {
+    let parts=s.split('.').collect::<Vec<_>>();
+    parts.len()==3 && parts.iter().all(|part|
+        !part.is_empty() && part.len()<=12 && part.bytes().all(|ch|ch.is_ascii_digit()))
 }
 fn valid_release_part(s: &str, max_len: usize) -> bool {
     !s.is_empty() && s.len() <= max_len && s.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'.')
@@ -259,7 +292,7 @@ fn extract_verified_zip(bytes_path:&Path, dest:&Path, entry:&str)->Result<(),Str
 #[tauri::command]
 async fn install_game_version(app:AppHandle, game_id:String, version:String, url:String, sha256:String, entry:String, game_format:String)->Result<serde_json::Value,String>{
     use sha2::{Sha256,Digest};
-    if !valid_release_part(&game_id,64)||!game_id.starts_with("community-")||!valid_release_part(&version,30)||version.split('.').count()!=3{return Err("Ungültige Spiel-ID/Version".into())}
+    if !valid_release_part(&game_id,64)||!game_id.starts_with("community-")||!valid_release_part(&version,30)||!valid_semver(&version){return Err("Ungültige Spiel-ID/Version".into())}
     if !matches!(game_format.as_str(),"windows"|"html"){return Err("Unbekanntes Paketformat".into())}
     let entry_path=PathBuf::from(&entry);
     if entry.len()>140||entry.is_empty()||entry_path.is_absolute()||entry_path.components().any(|part|matches!(part,std::path::Component::ParentDir|std::path::Component::Prefix(_))){return Err("Ungültige Startdatei".into())}
@@ -268,6 +301,7 @@ async fn install_game_version(app:AppHandle, game_id:String, version:String, url
     if sha256.len()!=64||!sha256.bytes().all(|b|b.is_ascii_hexdigit()){return Err("Ungültige Paket-Prüfsumme".into())}
     let u=reqwest::Url::parse(&url).map_err(|_|"Ungültige Download-URL")?;
     if u.scheme()!="https"{return Err("Nur HTTPS-Downloads erlaubt".into())}
+    let _install_guard=reserve_install(&app,&game_id)?;
     let root=installed_dir(&app)?;
     let game_root=root.join(&game_id);
     fs::create_dir_all(&game_root).map_err(|e|e.to_string())?;
