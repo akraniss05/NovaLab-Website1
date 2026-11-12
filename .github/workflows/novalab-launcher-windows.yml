@@ -75,6 +75,8 @@ jobs:
         run: |
           gh release view novalab-launcher-v0.8-alpha --repo akraniss05/NovaLab-Website1 --json tagName *> $null
           if ($LASTEXITCODE -eq 0) { throw 'Version 0.8 already published: bump version before publishing changes.' }
+          Write-Host '0.8 tag is unused: safe to publish immutable release'
+          exit 0
       - name: Smoke-test Windows upgrade from installed 0.7 to 0.8
         shell: pwsh
         env:
