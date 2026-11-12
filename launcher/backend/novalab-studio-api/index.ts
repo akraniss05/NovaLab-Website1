@@ -79,7 +79,16 @@ async function getVersions(id:string) {
  if(error)throw error;return data||[];
 }
 function versionNum(v:string){return v.split('.').map(Number);}
-function newest(list:any[]){return [...list].filter(v=>v.channel==='stable').sort((a,b)=>{const x=versionNum(a.version),y=versionNum(b.version);return y[0]-x[0]||y[1]-x[1]||y[2]-x[2];})[0]||null;}
+function newest(list:any[],status=''){
+ // Beta/Alpha storefront entries can offer their Beta-channel builds. Regular
+ // released games only receive stable builds (never accidental prereleases).
+ const betaVisible=['Beta','Alpha'].includes(status);
+ return [...list].filter(v=>v.channel==='stable'||(betaVisible&&v.channel==='beta'))
+  .sort((a,b)=>{
+   const x=versionNum(a.version),y=versionNum(b.version);
+   return y[0]-x[0]||y[1]-x[1]||y[2]-x[2]||(a.channel===b.channel?0:a.channel==='stable'?-1:1);
+  })[0]||null;
+}
 function buildPublic(game:any,media:any[],build:any){
  const pick=(kind:string)=>media.filter(m=>m.kind===kind);
  const cover=pick('cover')[0]?.url||'';
@@ -169,7 +178,7 @@ Deno.serve(async(req:Request)=>{
   if(endpoint==='catalog'&&req.method==='GET'){
    const {data,error}=await db.from('novalab_studio_games').select('*').eq('visibility','published').order('featured',{ascending:false}).order('updated_at',{ascending:false}).limit(40);
    if(error)throw error;
-   const games=await Promise.all((data||[]).map(async g=>buildPublic(g,await getMedia(g.id),newest(await getVersions(g.id)))));
+   const games=await Promise.all((data||[]).map(async g=>buildPublic(g,await getMedia(g.id),newest(await getVersions(g.id),g.status))));
    const hidden=await suppressed();
    return reply({games,excludedIds:[...hidden]});
   }
@@ -365,7 +374,7 @@ Deno.serve(async(req:Request)=>{
     if(!media.some(m=>m.kind==='cover')||!media.some(m=>m.kind==='banner'))return bad('Cover und Hauptbanner sind Pflicht.');
     if(game.description.length<20)return bad('Ausführliche Beschreibung fehlt (mindestens 20 Zeichen).');
     // Coming-soon projects are permitted without build, but cannot have an install button.
-    if(['Veröffentlicht','Early Access','Beta','Alpha'].includes(game.status)&&!newest(await getVersions(id)))return bad('Spielbarer Release benötigt ein gültiges Spielpaket.');
+    if(['Veröffentlicht','Early Access','Beta','Alpha'].includes(game.status)&&!newest(await getVersions(id),game.status))return bad('Spielbarer Release benötigt ein gültiges Spielpaket.');
    }
    const {error}=await db.from('novalab_studio_games').update({visibility,updated_at:new Date().toISOString()}).eq('id',id);
    if(error)throw error;
