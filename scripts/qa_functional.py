@@ -92,7 +92,8 @@ async def run():
   await page.locator("#projectForm button[type='submit']").click()
   await page.get_by_text("Nur PNG/JPG/WebP",exact=False).wait_for()
   assert len(published)==1
-  # New project, unsaved form and image upload through a mocked server.
+  # Discard the invalid unsaved file before switching projects.
+  page.once("dialog",lambda dialog:asyncio.create_task(dialog.accept()))
   await page.locator("#newProject").click()
   await page.locator("#fTitle").fill("NovaLab QA Projekt")
   await page.locator("#fSummary").fill("Neues Projekt mit Bild")
