@@ -302,7 +302,7 @@ fn extract_verified_zip(bytes_path:&Path, dest:&Path, entry:&str)->Result<(),Str
     if archive.len()>3000 {return Err("Zu viele Dateien im Spielarchiv".into())}
     let mut uncompressed=0_u64;
     for i in 0..archive.len() {
-        let mut item=archive.by_index(i).map_err(|e|e.to_string())?;
+        let item=archive.by_index(i).map_err(|e|e.to_string())?;
         let name=item.enclosed_name().ok_or("Unsicherer Dateipfad im ZIP")?.to_owned();
         // Never extract symlinks or hardlinks from untrusted archives.
         if item.unix_mode().is_some_and(|m| m & 0o170000 == 0o120000) {return Err("ZIP-Links sind nicht erlaubt".into())}
