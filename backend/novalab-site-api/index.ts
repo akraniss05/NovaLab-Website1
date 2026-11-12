@@ -52,10 +52,22 @@ const preflight = (req:Request) => {
 async function readBody(req:Request,max=260000){
   const size=Number(req.headers.get("content-length")||"0");
   if(size>max)throw new Error("Anfrage zu groß.");
-  const raw=await req.text();
-  if(enc.encode(raw).byteLength>max)throw new Error("Anfrage zu groß.");
+  if(!req.body)throw new Error("Ungültiges JSON.");
+  const reader=req.body.getReader();
+  const chunks:Uint8Array[]=[];let total=0;
+  try{
+    while(true){
+      const {done,value}=await reader.read();
+      if(done)break;
+      total+=value.byteLength;
+      if(total>max){await reader.cancel();throw new Error("Anfrage zu groß.")}
+      chunks.push(value);
+    }
+  }finally{reader.releaseLock()}
+  const bytes=new Uint8Array(total);let offset=0;
+  for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength}
   let body:unknown;
-  try{body=JSON.parse(raw)}catch{throw new Error("Ungültiges JSON.")}
+  try{body=JSON.parse(dec.decode(bytes))}catch{throw new Error("Ungültiges JSON.")}
   if(!body||typeof body!=="object"||Array.isArray(body))throw new Error("Ungültiges JSON.");
   return body as Record<string,unknown>;
 }
@@ -119,6 +131,15 @@ function cleanProject(p: Record<string,unknown>,index:number){
     featured:p.featured!==false,sort_index:index
   };
 }
+function matchesFileSignature(bytes:Uint8Array,mime:string){
+  const prefix=(...values:number[])=>values.every((value,i)=>bytes[i]===value);
+  if(mime==="image/png")return bytes.length>=24&&prefix(137,80,78,71,13,10,26,10);
+  if(mime==="image/jpeg")return bytes.length>=4&&prefix(255,216,255);
+  if(mime==="image/webp")return bytes.length>=12&&prefix(82,73,70,70)&&bytes[8]===87&&bytes[9]===69&&bytes[10]===66&&bytes[11]===80;
+  if(mime==="video/mp4")return bytes.length>=12&&bytes[4]===102&&bytes[5]===116&&bytes[6]===121&&bytes[7]===112;
+  if(mime==="video/webm")return bytes.length>=4&&prefix(26,69,223,163);
+  return false;
+}
 Deno.serve(async(req:Request)=>{
   if(req.method==="OPTIONS")return preflight(req);
   const url=new URL(req.url),path=url.pathname.split("/novalab-site-api")[1]||"/";
@@ -127,9 +148,9 @@ Deno.serve(async(req:Request)=>{
   try{
     if(req.method==="GET"&&path==="/health")return send(req,{status:"ok",project:"NovaLab Studios"});
     if(req.method==="GET"&&path==="/projects"){
-      const {data,error}=await db.from("novalab_site_projects").select("id,data,sort_order,updated_at").order("sort_order").order("id");
+      const {data,error}=await db.rpc("novalab_site_catalog_read");
       if(error)throw error;
-      return send(req,{projects:(data||[]).map(row=>row.data),revision:await catalogRevision(data||[])});
+      return send(req,data);
     }
     if(req.method==="POST"&&path==="/login"){
       const input=await readBody(req,1600);
@@ -193,21 +214,16 @@ Deno.serve(async(req:Request)=>{
       const items=body.projects.map((p:unknown,i:number)=>{if(!p||typeof p!=="object"||Array.isArray(p))throw new Error("Ungültiger Projektkatalog.");return cleanProject(p as Record<string,unknown>,i)});
       const unique=new Set(items.map(p=>p.id));
       if(unique.size!==items.length)throw new Error("Projekt-IDs müssen eindeutig sein.");
-      const {data:before,error:readError}=await db.from("novalab_site_projects").select("id,data,sort_order,updated_at").order("sort_order").order("id");
-      if(readError)throw readError;
-      const latest=await catalogRevision(before||[]);
-      if(typeof body.revision!=="string"||body.revision!==latest) {
-        return send(req,{error:"Der Projektkatalog wurde seit dem Laden verändert. Deine Änderungen wurden nicht überschrieben. Bitte vor einem erneuten Versuch den aktuellen Stand prüfen.",code:"CATALOG_CONFLICT"},409);
+      const {data,error}=await db.rpc("novalab_site_catalog_apply",{
+        p_expected_revision:String(body.revision||""),
+        p_projects:items
+      });
+      if(error)throw error;
+      if(data?.conflict) {
+        return send(req,{error:"Der Projektkatalog wurde seit dem Laden verändert. Deine Änderungen wurden nicht überschrieben. Bitte den aktuellen Stand neu laden.",code:"CATALOG_CONFLICT"},409);
       }
-      if(items.length){
-        const {error}=await db.from("novalab_site_projects").upsert(items.map(p=>({id:p.id,data:p,sort_order:p.sort_index,updated_at:new Date().toISOString()})),{onConflict:"id"});
-        if(error)throw error;
-      }
-      const stale=(before||[]).map(p=>p.id).filter(id=>!unique.has(id));
-      if(stale.length){const {error}=await db.from("novalab_site_projects").delete().in("id",stale);if(error)throw error}
-      const {data:after,error:verifyError}=await db.from("novalab_site_projects").select("id,data,sort_order,updated_at").order("sort_order").order("id");
-      if(verifyError)throw verifyError;
-      return send(req,{ok:true,count:items.length,updatedBy:session.username,revision:await catalogRevision(after||[])});
+      if(!data?.ok)throw Error("Katalog konnte nicht gespeichert werden.");
+      return send(req,{ok:true,count:data.count,updatedBy:session.username,revision:data.revision});
     }
     if(req.method==="POST"&&path==="/media"){
       const body=await readBody(req,17500000);
@@ -215,13 +231,15 @@ Deno.serve(async(req:Request)=>{
       const extensions:Record<string,string>={"image/png":"png","image/jpeg":"jpg","image/webp":"webp","video/mp4":"mp4","video/webm":"webm"};
       const ext=extensions[mime];
       if(!ext)return send(req,{error:"Nur PNG/JPG/WebP und MP4/WebM erlaubt."},400);
-      const base64=String(body.base64||"");
-      if(!/^[a-zA-Z0-9+/=\s]+$/.test(base64))return send(req,{error:"Ungültige Bild- oder Videodaten."},400);
+      const base64=String(body.base64||"").replace(/\s/g,"");
+      if(!/^[A-Za-z0-9+/]*={0,2}$/.test(base64)||base64.length%4!==0)return send(req,{error:"Ungültige Bild- oder Videodaten."},400);
       const limit=kind==="image"?4*1024*1024:12*1024*1024;
-      if(base64.length>limit*1.4) return send(req,{error:"Datei zu groß."},413);
-      const raw=atob(base64.replace(/\s/g,""));
+      if(base64.length>limit*1.4)return send(req,{error:"Datei zu groß."},413);
+      let raw:string;
+      try{raw=atob(base64)}catch{return send(req,{error:"Ungültige Bild- oder Videodaten."},400)}
       const bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
       if(bytes.byteLength>limit)return send(req,{error:"Datei zu groß."},413);
+      if(!matchesFileSignature(bytes,mime))return send(req,{error:"Dateiinhalt passt nicht zum angegebenen Dateityp."},400);
       const id=crypto.randomUUID(),path="nova-"+id+"."+ext;
       const {error}=await db.storage.from(BUCKET).upload(path,bytes,{contentType:mime,upsert:false,cacheControl:"3600"});
       if(error)throw error;

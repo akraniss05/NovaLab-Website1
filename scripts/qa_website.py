@@ -32,7 +32,7 @@ assert required_routes <= parser.section_routes, f'missing page routes: {require
 required_ids={'mainNav','mobileMenu','introNovaLab','discoverNovaLab','projectGrid','projectSearch','projectForm','adminLogin','loginForm','adminDashboard','publish','fCoverFile','fGalleryFiles','fVideoFile'}
 assert required_ids <= parser.ids, f'missing ID: {required_ids-parser.ids}'
 assert not parser.duplicates, f'duplicate ids: {parser.duplicates}'
-assert '<script defer src="./app.js?v=15"></script>' in html
+assert '<script defer src="./app.js?v=16"></script>' in html
 assert '<link rel="stylesheet" href="./studio-v14.css?v=15">' in html
 assert 'Windows-Launcher herunterladen' in html
 assert 'NovaLab Code für Windows' in html
@@ -49,7 +49,7 @@ for asset in ('site-hero.svg','site-code.svg','site-launcher.svg','site-games.sv
     ET.parse(ROOT/'assets'/asset)
 assert './launcher/download.html' not in html
 assert './launcher/mini-games/' not in html
-assert 'releases/download/novalab-launcher-v0.8-alpha/' in html
+assert 'releases/download/novalab-launcher-v0.10-alpha/' in html
 print(f'OK: {len(parser.section_routes)} routes, {len(parser.ids)} unique IDs, {len(parser.local_urls)} local resources, 5 valid SVG assets and JavaScript')
 
 assert 'id="featuredSection"' in html and 'id="featuredGrid"' in html

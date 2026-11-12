@@ -16,6 +16,9 @@ on:
       - 'scripts/qa_browser.py'
       - 'scripts/qa_functional.py'
       - 'scripts/qa_resilience.py'
+      - 'scripts/qa_website_edgecases.py'
+      - 'scripts/qa_live_api.py'
+      - 'backend/novalab-site-api/catalog-atomic-migration.sql'
       - 'backend/novalab-site-api/index.ts'
       - '.github/workflows/website-v14-qa.yml'
 permissions:
@@ -46,6 +49,10 @@ jobs:
           python3 scripts/qa_browser.py
           python3 scripts/qa_functional.py
           python3 scripts/qa_resilience.py
+          python3 scripts/qa_website_edgecases.py
+      - name: Öffentliches API live prüfen (nur Lese-/Autorisierungstests)
+        run: |
+          python3 scripts/qa_live_api.py
       - name: Bilder als Workflow-Artefakt veröffentlichen
         if: always()
         uses: actions/upload-artifact@v4
