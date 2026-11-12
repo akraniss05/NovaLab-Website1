@@ -47,16 +47,10 @@ assert 'window.innerWidth>1090' in js
 assert 'verifyOfficialProject' in js
 for asset in ('site-hero.svg','site-code.svg','site-launcher.svg','site-games.svg','site-beat.svg'):
     ET.parse(ROOT/'assets'/asset)
-for local_page in ('launcher/download.html','launcher/mini-games/index.html'):
-    contents=(ROOT/local_page).read_text(encoding='utf8')
-    assert '<html lang="de">' in contents
-    assert 'NovaLab' in contents
-    assert '</html>' in contents
-    if local_page.endswith('download.html'):
-        assert 'NovaLab-Launcher-Setup-0.7.0.exe' in contents
-    else:
-        assert "['../catalog.json','https://raw.githubusercontent.com/" in contents
-print(f'OK: {len(parser.section_routes)} routes, {len(parser.ids)} unique IDs, {len(parser.local_urls)} local resources, 5 valid SVG assets, download page, Mini-Games and JavaScript')
+assert './launcher/download.html' not in html
+assert './launcher/mini-games/' not in html
+assert 'releases/download/novalab-launcher-v0.8-alpha/' in html
+print(f'OK: {len(parser.section_routes)} routes, {len(parser.ids)} unique IDs, {len(parser.local_urls)} local resources, 5 valid SVG assets and JavaScript')
 
 assert 'id="featuredSection"' in html and 'id="featuredGrid"' in html
 assert 'function renderFeatured()' in js and 'formDirty' in js
