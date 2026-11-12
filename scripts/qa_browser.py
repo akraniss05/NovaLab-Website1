@@ -28,7 +28,7 @@ async def run():
   await desktop.screenshot(path=str(OUT/'website-code-desktop.png'),full_page=True,animations='disabled')
   await desktop.goto(URL+'#launcher',wait_until='domcontentloaded')
   assert await desktop.locator('[data-page="launcher"]').is_visible()
-  assert await desktop.locator('a[href*="releases/download/novalab-launcher-v0.8-alpha/"]').count()>0
+  assert await desktop.locator('a[href*="releases/download/novalab-launcher-v0.10-alpha/"]').count()>0
   await desktop.goto(URL+'#admin',wait_until='domcontentloaded')
   assert await desktop.locator('#loginForm').is_visible()
   assert await desktop.locator('#loginPassword').get_attribute('type')=='password'
