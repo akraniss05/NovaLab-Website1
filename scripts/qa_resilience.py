@@ -98,8 +98,11 @@ async def run():
    await mobile.route("**/functions/v1/novalab-site-api/**",api)
    await mobile.goto(URL+"#projects",wait_until="domcontentloaded")
    await mobile.locator("#projectGrid .project-card").first.wait_for()
-   dimension=await mobile.evaluate("({page:document.documentElement.scrollWidth,viewport:innerWidth})")
-   assert dimension["page"]<=dimension["viewport"]+2,f"Horizontal overflow at {width}px: {dimension}"
+   for route_name in ("home","projects","learning","code","music","games","launcher","team","support","admin"):
+    await mobile.evaluate("(name)=>location.hash='#'+name",route_name)
+    await mobile.locator(f'[data-page="{route_name}"]').wait_for(state="visible")
+    dimension=await mobile.evaluate("({page:document.documentElement.scrollWidth,viewport:innerWidth})")
+    assert dimension["page"]<=dimension["viewport"]+2,f"Horizontal overflow at {width}px on {route_name}: {dimension}"
    if width<=1090:
     await mobile.locator("#mobileMenu").click()
     assert await mobile.locator("#mainNav").evaluate("(e)=>e.classList.contains('open')")
@@ -108,6 +111,6 @@ async def run():
    await mobile.close()
   assert not errors,"Browser JS errors: "+str(errors)
   await browser.close()
-  print("OK: API fallback publish block, two-step upload resume, logout draft isolation, 8 viewport widths and mobile menu")
+  print("OK: API fallback publish block, two-step upload resume, logout draft isolation, 10 routes on 8 widths, mobile menu")
 
 asyncio.run(run())
